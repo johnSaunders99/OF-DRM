@@ -17,6 +17,97 @@ namespace OF_DRM_Video_Downloader.Helpers
         {
             dBHelper = new DBHelper();
         }
+
+        public async Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, ProgressTask task)
+        {
+            try
+                    {
+                        // Prepare filename and target folder
+                        var uri = new Uri(fullUrl);
+                        string filename = Path.GetFileName(uri.LocalPath);
+                        string relativePath = "/Posts/Free/Videos";
+                        string targetDir = Path.Combine(folder, relativePath.TrimStart('/'));
+                        Directory.CreateDirectory(targetDir);
+
+                        // Skip if already downloaded
+                        if (!await dBHelper.CheckDownloaded(folder, mediaId))
+                        {
+                            string outputPath = Path.Combine(targetDir, filename);
+
+                            // Start HTTP download with streaming
+                            using var http = new HttpClient();
+                            http.DefaultRequestHeaders.UserAgent.ParseAdd("YourUserAgentHere");
+                            using var response = await http.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead);
+                            response.EnsureSuccessStatusCode();
+
+                            long totalBytes = response.Content.Headers.ContentLength ?? 0;
+                            task.Increment(0);            // initialize progress
+                            task.MaxValue = totalBytes;   // set total size
+
+                            // Download to file with incremental progress
+                            using var contentStream = await response.Content.ReadAsStreamAsync();
+                            using var fileStream    = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                            var buffer = new byte[81920];
+                            int bytesRead;
+                            long bytesSoFar = 0;
+
+                            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                                bytesSoFar += bytesRead;
+                                task.Increment(bytesRead);
+                            }
+
+                            // Update filesystem timestamp to now
+                            DateTime now = DateTime.UtcNow;
+                            File.SetLastWriteTimeUtc(outputPath, now);
+
+                            // Record in database
+                            long fileSize = new FileInfo(outputPath).Length;
+                            await dBHelper.UpdateMedia(
+                                folder,
+                                mediaId,
+                                targetDir,
+                                filename,
+                                fileSize,
+                                true,      // isDownloaded
+                                now        // lastModified
+                            );
+
+                            return true; // new download
+                        }
+                        else
+                        {
+                            // Already downloaded: just increment progress and update DB timestamp
+                            string existingPath = Path.Combine(
+                                folder,
+                                "Posts/Free/Videos",
+                                Path.GetFileName(new Uri(fullUrl).LocalPath)
+                            );
+                            long fileSize = await dBHelper.GetFileSize(folder, mediaId);
+                            task.Increment(fileSize);
+
+                            // Optionally refresh DB record’s lastModified
+                            await dBHelper.UpdateMedia(
+                                folder,
+                                mediaId,
+                                Path.GetDirectoryName(existingPath),
+                                Path.GetFileName(existingPath),
+                                fileSize,
+                                true,
+                                File.GetLastWriteTimeUtc(existingPath)
+                            );
+
+                            return false; // already existed
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"DownloadPostFullVideo error: {ex.Message}\n{ex.StackTrace}");
+                        return false;
+                    }
+        }
+
         public async Task<bool> DownloadPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try

@@ -1,9 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OF_DRM_Video_Downloader.Entities
 {
@@ -13,6 +10,7 @@ namespace OF_DRM_Video_Downloader.Entities
         public bool hasMore { get; set; }
         public string headMarker { get; set; }
         public string tailMarker { get; set; }
+
         public class Author
         {
             public int? id { get; set; }
@@ -21,11 +19,9 @@ namespace OF_DRM_Video_Downloader.Entities
 
         public class Dash
         {
-            [JsonProperty("CloudFront-Policy")]
-            public string CloudFrontPolicy { get; set; }
+            [JsonProperty("CloudFront-Policy")] public string CloudFrontPolicy { get; set; }
 
-            [JsonProperty("CloudFront-Signature")]
-            public string CloudFrontSignature { get; set; }
+            [JsonProperty("CloudFront-Signature")] public string CloudFrontSignature { get; set; }
 
             [JsonProperty("CloudFront-Key-Pair-Id")]
             public string CloudFrontKeyPairId { get; set; }
@@ -37,19 +33,37 @@ namespace OF_DRM_Video_Downloader.Entities
             public Signature signature { get; set; }
         }
 
+        public class Preview
+        {
+            public int? width { get; set; }
+            public int? height { get; set; }
+            public int? size { get; set; }
+            public string url { get; set; }
+        }
+
+        public class Full
+        {
+            public string url { get; set; }
+            public int? width { get; set; }
+            public int? height { get; set; }
+            public long? size { get; set; }
+            public List<string> sources { get; set; }
+        }
+
         public class Files
         {
+            public Preview thumb { get; set; }
             public Preview preview { get; set; }
+            public Preview squarePreview { get; set; }
+            public Full full { get; set; }
             public Drm drm { get; set; }
         }
 
         public class Hls
         {
-            [JsonProperty("CloudFront-Policy")]
-            public string CloudFrontPolicy { get; set; }
+            [JsonProperty("CloudFront-Policy")] public string CloudFrontPolicy { get; set; }
 
-            [JsonProperty("CloudFront-Signature")]
-            public string CloudFrontSignature { get; set; }
+            [JsonProperty("CloudFront-Signature")] public string CloudFrontSignature { get; set; }
 
             [JsonProperty("CloudFront-Key-Pair-Id")]
             public string CloudFrontKeyPairId { get; set; }
@@ -85,7 +99,7 @@ namespace OF_DRM_Video_Downloader.Entities
             public bool isOpened { get; set; }
             public bool? canToggleFavorite { get; set; }
             public object streamId { get; set; }
-            public string? price { get; set; }
+            public string price { get; set; }
             public bool? hasVoting { get; set; }
             public bool? isAddedToBookmarks { get; set; }
             public bool isArchived { get; set; }
@@ -107,8 +121,8 @@ namespace OF_DRM_Video_Downloader.Entities
 
         public class Manifest
         {
-            public string? hls { get; set; }
-            public string? dash { get; set; }
+            public string hls { get; set; }
+            public string dash { get; set; }
         }
 
         public class Medium
@@ -121,20 +135,8 @@ namespace OF_DRM_Video_Downloader.Entities
             public DateTime? createdAt { get; set; }
             public Info info { get; set; }
             public Source source { get; set; }
-            public string squarePreview { get; set; }
-            public string full { get; set; }
-            public string preview { get; set; }
-            public string thumb { get; set; }
             public Files files { get; set; }
             public VideoSources videoSources { get; set; }
-        }
-
-        public class Preview
-        {
-            public int? width { get; set; }
-            public int? height { get; set; }
-            public int? size { get; set; }
-            public string url { get; set; }
         }
 
         public class Signature
@@ -145,7 +147,7 @@ namespace OF_DRM_Video_Downloader.Entities
 
         public class Source
         {
-            public string? source { get; set; }
+            public string source { get; set; }
             public int? width { get; set; }
             public int? height { get; set; }
             public int? size { get; set; }
@@ -154,11 +156,9 @@ namespace OF_DRM_Video_Downloader.Entities
 
         public class VideoSources
         {
-            [JsonProperty("720")]
-            public object _720 { get; set; }
+            [JsonProperty("240")] public string _240 { get; set; }
 
-            [JsonProperty("240")]
-            public object _240 { get; set; }
+            [JsonProperty("720")] public string _720 { get; set; }
         }
     }
 }

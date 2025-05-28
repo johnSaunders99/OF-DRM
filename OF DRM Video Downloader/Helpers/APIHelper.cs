@@ -615,20 +615,106 @@ namespace OF_DRM_Video_Downloader.Helpers
                             {
                                 foreach (Post.Medium media in post.media)
                                 {
-                                    if (media.canView && media.files != null && media.files.drm != null)
+                                    // if (media.canView && media.files != null && media.files.drm != null)
+                                    // {
+                                    //     await dBHelper.AddPost(folder, post.id, post.text != null ? post.text : string.Empty, post.price != null ? post.price.ToString() : "0", post.price != null && post.isOpened ? true : false, post.isArchived, post.postedAt);
+                                    //     if (!postCollection.Video_URLS.ContainsKey(post.id))
+                                    //     {
+                                    //         postCollection.Video_URLS.Add(post.id, new List<string>());
+                                    //     }
+                                    //     postCollection.Video_URLS[post.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{post.id}");
+                                    //     if (!postCollection.Posts.ContainsKey(post.id))
+                                    //     {
+                                    //         postCollection.Posts.Add(post.id, post.postedAt);
+                                    //     }
+                                    //     await dBHelper.AddMedia(folder, media.id, post.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), postPreviewIds.Contains((long)media.id) ? true : false, false, null);
+                                    // }
+                                    bool postAdded = false;
+                                    if (!media.canView || media.files == null)
+                                    continue;
+
+                                    // 1. 确定视频源
+                                    string sourceUrl = null!;
+                                    bool isDrm = false;
+
+                                    if (media.files.drm?.manifest?.dash != null)
                                     {
-                                        await dBHelper.AddPost(folder, post.id, post.text != null ? post.text : string.Empty, post.price != null ? post.price.ToString() : "0", post.price != null && post.isOpened ? true : false, post.isArchived, post.postedAt);
-                                        if (!postCollection.Video_URLS.ContainsKey(post.id))
-                                        {
-                                            postCollection.Video_URLS.Add(post.id, new List<string>());
-                                        }
-                                        postCollection.Video_URLS[post.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{post.id}");
-                                        if (!postCollection.Posts.ContainsKey(post.id))
-                                        {
-                                            postCollection.Posts.Add(post.id, post.postedAt);
-                                        }
-                                        await dBHelper.AddMedia(folder, media.id, post.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), postPreviewIds.Contains((long)media.id) ? true : false, false, null);
+                                        sourceUrl = media.files.drm.manifest.dash;
+                                        isDrm = true;
                                     }
+                                    else if (media.files.full?.url != null)
+                                    {
+                                        sourceUrl = media.files.full.url;
+                                    }
+                                    else
+                                    {
+                                        continue; // 没有可用视频源
+                                    }
+
+                                    // 2. AddPost
+                                    if (!postAdded)
+                                    {
+                                        await dBHelper.AddPost(
+                                            folder,
+                                            post.id,
+                                            post.text ?? string.Empty,
+                                            post.price?.ToString() ?? "0",
+                                            post.price != null && post.isOpened,
+                                            post.isArchived,
+                                            post.postedAt
+                                        );
+                                        postAdded = true;
+                                    }
+
+                                    // 3. 内存列表追踪
+                                    if (!postCollection.Video_URLS.ContainsKey(post.id))
+                                        postCollection.Video_URLS[post.id] = new List<string>();
+
+                                    if (isDrm)
+                                    {
+                                        var dashSig = media.files.drm.signature.dash;
+                                        postCollection.Video_URLS[post.id].Add(
+                                            $"{sourceUrl}," +
+                                            $"{dashSig.CloudFrontPolicy}," +
+                                            $"{dashSig.CloudFrontSignature}," +
+                                            $"{dashSig.CloudFrontKeyPairId}," +
+                                            $"{media.id}," +
+                                            $"{post.id}"
+                                        );
+                                    }
+                                    else
+                                    {
+                                        postCollection.Video_URLS[post.id].Add(
+                                            $"{sourceUrl},{media.id},{post.id}"
+                                        );
+                                    }
+
+                                    if (!postCollection.Posts.ContainsKey(post.id))
+                                        postCollection.Posts[post.id] = post.postedAt;
+
+                                    // 4. 持久化 Media
+                                    string category = media.type switch
+                                    {
+                                        "photo" => "Images",
+                                        "video" or "gif" => "Videos",
+                                        "audio" => "Audios",
+                                        _ => null
+                                    };
+
+                                    await dBHelper.AddMedia(
+                                        folder,
+                                        media.id,
+                                        post.id,
+                                        sourceUrl,
+                                        null, // 预留1
+                                        null, // 预留2
+                                        null, // 预留3
+                                        "Posts",
+                                        category,
+                                        postPreviewIds.Contains(media.id),
+                                        false,
+                                        null
+                                    );
                                 }
                             }
                         }
@@ -1266,7 +1352,7 @@ namespace OF_DRM_Video_Downloader.Helpers
 			try
 			{
 				HttpClient client = new HttpClient();
-				HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://raw.githubusercontent.com/deviint/onlyfans-dynamic-rules/main/dynamicRules.json");
+				HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://raw.githubusercontent.com/rafa-9/dynamic-rules/73748e035957041e33cab3213d89ca6cf4107327/rules.json");
 				using var response = client.Send(request);
 
 				if (!response.IsSuccessStatusCode)

@@ -250,47 +250,104 @@ namespace OF_DRM_Video_Downloader
                                                 }
                                             }
                                         }
+                                        // … after videos_to_download is populated …
                                         if (videos_to_download.Count > 0)
                                         {
-                                            await AnsiConsole.Progress().Columns(new TaskDescriptionColumn(), new ProgressBarColumn(), new PercentageColumn(), new DownloadedColumn(), new RemainingTimeColumn()).StartAsync(async ctx =>
+                                            await AnsiConsole.Progress()
+                                                .Columns(
+                                                    new TaskDescriptionColumn(),
+                                                    new ProgressBarColumn(),
+                                                    new PercentageColumn(),
+                                                    new DownloadedColumn(),
+                                                    new RemainingTimeColumn()
+                                                )
+                                                .StartAsync(async ctx =>
                                             {
                                                 var task = ctx.AddTask($"[red]Downloading {videos_to_download.Count} Video(s)[/]", autoStart: false);
-
                                                 task.MaxValue = await downloadHelper.CalculateTotalFileSize(videos_to_download, auth);
                                                 task.StartTask();
-                                                foreach (string video in videos_to_download)
+
+                                                foreach (string entry in videos_to_download)
                                                 {
-                                                    bool isNew;
-                                                    if (video.Contains("cdn3.onlyfans.com/dash/files"))
+                                                    var parts = entry.Split(',');
+                                                    bool isNewVideo = false;
+
+                                                    if (parts.Length == 6)
                                                     {
-                                                        string[] messageUrlParsed = video.Split(',');
-                                                        string mpdURL = messageUrlParsed[0];
-                                                        string policy = messageUrlParsed[1];
-                                                        string signature = messageUrlParsed[2];
-                                                        string kvp = messageUrlParsed[3];
-                                                        string mediaId = messageUrlParsed[4];
-                                                        string postId = messageUrlParsed[5];
+                                                        // --- DRM flow ---
+                                                        string mpdURL    = parts[0];
+                                                        string policy    = parts[1];
+                                                        string signature = parts[2];
+                                                        string kvp       = parts[3];
+                                                        string mediaId   = parts[4];
+                                                        string postId    = parts[5];
+
                                                         string? pssh = await apiHelper.GetDRMMPDPSSH(mpdURL, policy, signature, kvp, auth);
                                                         if (pssh != null)
                                                         {
                                                             DateTime lastModified = await apiHelper.GetDRMMPDLastModified(mpdURL, policy, signature, kvp, auth);
-                                                            Dictionary<string, string> drmHeaders = apiHelper.Headers($"/api2/v2/users/media/{mediaId}/drm/post/{postId}", "?type=widevine", auth);
-                                                            string decryptionKey = await apiHelper.GetDecryptionKeyNew(drmHeaders, $"https://onlyfans.com/api2/v2/users/media/{mediaId}/drm/post/{postId}?type=widevine", pssh);
-                                                            isNew = await downloadHelper.DownloadPostDRMVideo(auth.YTDLP_PATH, auth.MP4DECRYPT_PATH, auth.FFMPEG_PATH, auth.USER_AGENT, policy, signature, kvp, auth.COOKIE, mpdURL, decryptionKey, path, lastModified, Convert.ToInt64(mediaId), task);
-                                                            if (isNew)
-                                                            {
-                                                                newPostCount++;
-                                                            }
-                                                            else
-                                                            {
-                                                                newPostCount++;
-                                                            }
+                                                            var drmHeaders = apiHelper.Headers(
+                                                                $"/api2/v2/users/media/{mediaId}/drm/post/{postId}",
+                                                                "?type=widevine",
+                                                                auth
+                                                            );
+                                                            string key = await apiHelper.GetDecryptionKeyNew(
+                                                                drmHeaders,
+                                                                $"https://onlyfans.com/api2/v2/users/media/{mediaId}/drm/post/{postId}?type=widevine",
+                                                                pssh
+                                                            );
+
+                                                            isNewVideo = await downloadHelper.DownloadPostDRMVideo(
+                                                                auth.YTDLP_PATH,
+                                                                auth.MP4DECRYPT_PATH,
+                                                                auth.FFMPEG_PATH,
+                                                                auth.USER_AGENT,
+                                                                policy,
+                                                                signature,
+                                                                kvp,
+                                                                auth.COOKIE,
+                                                                mpdURL,
+                                                                key,
+                                                                path,
+                                                                lastModified,
+                                                                Convert.ToInt64(mediaId),
+                                                                task
+                                                            );
                                                         }
                                                     }
+                                                    else if (parts.Length == 3)
+                                                    {
+                                                        // --- Non-DRM flow ---
+                                                        string fullUrl  = parts[0];
+                                                        long   mediaId  = Convert.ToInt64(parts[1]);
+                                                        long   postId   = Convert.ToInt64(parts[2]);
+
+                                                        // Example: simple HTTP download (adjust to your helper method)
+                                                        isNewVideo = await downloadHelper.DownloadPostFullVideo(
+                                                            fullUrl,
+                                                            path,
+                                                            mediaId,
+                                                            task
+                                                        );
+                                                    }
+                                                    else
+                                                    {
+                                                        // Unexpected format; skip
+                                                        continue;
+                                                    }
+
+                                                    if (isNewVideo)
+                                                        newPostCount++;
+                                                    else
+                                                        oldPostCount++;
                                                 }
                                             });
-                                            AnsiConsole.Markup($"[red]Post DRM Videos Skipped/Already Downloaded: {oldPostCount} New Post DRM Videos Downloaded: {newPostCount}[/]\n");
+
+                                            AnsiConsole.Markup(
+                                                $"[red]Skipped/Already Downloaded: {oldPostCount}; New Downloads: {newPostCount}[/]\n"
+                                            );
                                         }
+
                                     }
                                     else
                                     {

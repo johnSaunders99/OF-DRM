@@ -161,16 +161,17 @@ namespace OF_DRM_Video_Downloader
                                                 task.StartTask();
                                                 foreach (string video in videos_to_download)
                                                 {
-                                                    bool isNew;
-                                                    if (video.Contains("cdn3.onlyfans.com/dash/files"))
+                                                    bool isNew = false;
+                                                    string[] parts = video.Split(',');
+                                                    if (video.Contains("cdn3.onlyfans.com/dash/files") && parts.Length == 6)
                                                     {
-                                                        string[] messageUrlParsed = video.Split(',');
-                                                        string mpdURL = messageUrlParsed[0];
-                                                        string policy = messageUrlParsed[1];
-                                                        string signature = messageUrlParsed[2];
-                                                        string kvp = messageUrlParsed[3];
-                                                        string mediaId = messageUrlParsed[4];
-                                                        string postId = messageUrlParsed[5];
+                                                        // --- DRM flow ---
+                                                        string mpdURL    = parts[0];
+                                                        string policy    = parts[1];
+                                                        string signature = parts[2];
+                                                        string kvp       = parts[3];
+                                                        string mediaId   = parts[4];
+                                                        string postId    = parts[5];
                                                         string? pssh = await apiHelper.GetDRMMPDPSSH(mpdURL, policy, signature, kvp, auth);
                                                         if (pssh != null)
                                                         {
@@ -178,16 +179,33 @@ namespace OF_DRM_Video_Downloader
                                                             Dictionary<string, string> drmHeaders = apiHelper.Headers($"/api2/v2/users/media/{mediaId}/drm/post/{postId}", "?type=widevine", auth);
                                                             string decryptionKey = await apiHelper.GetDecryptionKeyNew(drmHeaders, $"https://onlyfans.com/api2/v2/users/media/{mediaId}/drm/post/{postId}?type=widevine", pssh);
                                                             isNew = await downloadHelper.DownloadPurchasedPostDRMVideo(auth.YTDLP_PATH, auth.MP4DECRYPT_PATH, auth.FFMPEG_PATH, auth.USER_AGENT, policy, signature, kvp, auth.COOKIE, mpdURL, decryptionKey, path, lastModified, Convert.ToInt64(mediaId), task);
-                                                            if (isNew)
-                                                            {
-                                                                newPaidPostCount++;
-                                                            }
-                                                            else
-                                                            {
-                                                                oldPaidPostCount++;
-                                                            }
+                                                            
                                                         }
                                                     }
+                                                    else if (parts.Length == 3)
+                                                    {
+                                                        // --- Non-DRM flow ---
+                                                        string fullUrl  = parts[0];
+                                                        long   mediaId  = Convert.ToInt64(parts[1]);
+                                                        long   postId   = Convert.ToInt64(parts[2]);
+                                                        isNew = await downloadHelper.DownloadPostFullVideo(
+                                                            fullUrl,
+                                                            path,
+                                                            mediaId,
+                                                            "/Posts/Paid/Videos",
+                                                            auth,
+                                                            task
+                                                        );
+                                                    } else
+                                                    {
+                                                        // Unexpected format; skip
+                                                        continue;
+                                                    }
+
+                                                    if (isNew)
+                                                        newPaidPostCount++;
+                                                    else
+                                                        oldPaidPostCount++;
                                                 }
                                             });
                                             AnsiConsole.Markup($"[red]Paid Post DRM Videos Skipped/Already Downloaded: {oldPaidPostCount} New Paid Post DRM Videos Downloaded: {newPaidPostCount}[/]\n");
@@ -250,7 +268,6 @@ namespace OF_DRM_Video_Downloader
                                                 }
                                             }
                                         }
-                                        // … after videos_to_download is populated …
                                         if (videos_to_download.Count > 0)
                                         {
                                             await AnsiConsole.Progress()
@@ -321,12 +338,12 @@ namespace OF_DRM_Video_Downloader
                                                         string fullUrl  = parts[0];
                                                         long   mediaId  = Convert.ToInt64(parts[1]);
                                                         long   postId   = Convert.ToInt64(parts[2]);
-
-                                                        // Example: simple HTTP download (adjust to your helper method)
                                                         isNewVideo = await downloadHelper.DownloadPostFullVideo(
                                                             fullUrl,
                                                             path,
                                                             mediaId,
+                                                            "/Posts/Free/Videos",
+                                                            auth,
                                                             task
                                                         );
                                                     }

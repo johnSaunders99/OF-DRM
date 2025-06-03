@@ -31,7 +31,19 @@ namespace OF_DRM_Video_Downloader.Entities
 
         public class Files
         {
+            public Preview thumb { get; set; }
+            public Preview preview { get; set; }
+            public Preview squarePreview { get; set; }
+            public Full full { get; set; }
             public Drm drm { get; set; }
+        }
+        public class Full
+        {
+            public string url { get; set; }
+            public int? width { get; set; }
+            public int? height { get; set; }
+            public long? size { get; set; }
+            public List<string> sources { get; set; }
         }
 
         public class FromUser
@@ -82,9 +94,9 @@ namespace OF_DRM_Video_Downloader.Entities
             public long id { get; set; }
             public bool isOpened { get; set; }
             public bool? isNew { get; set; }
-            public DateTime? createdAt { get; set; }
-            public DateTime? postedAt { get; set; }
-            public DateTime? changedAt { get; set; }
+            public DateTime createdAt { get; set; }
+            public DateTime postedAt { get; set; }
+            public DateTime changedAt { get; set; }
             public int? cancelSeconds { get; set; }
             public bool? isLiked { get; set; }
             public bool? canPurchase { get; set; }

@@ -247,16 +247,47 @@ namespace OF_DRM_Video_Downloader.Helpers
         }
         public async Task<long> GetFileSize(string folder, long media_id)
         {
-            long size;
-            using (SqliteConnection connection = new SqliteConnection($"Data Source={folder}/Metadata/user_data.db"))
+            long size = 0;
+            string dbPath = Path.Combine(folder, "Metadata", "user_data.db");
+            await using (var connection = new SqliteConnection($"Data Source={dbPath}"))
             {
-                connection.Open();
-                using (SqliteCommand cmd = new SqliteCommand($"SELECT size FROM medias WHERE media_id={media_id}", connection))
+                await connection.OpenAsync();
+                await using (var cmd = new SqliteCommand(
+                                 "SELECT size FROM medias WHERE media_id = @id", connection))
                 {
-                    size = Convert.ToInt64(cmd.ExecuteScalar());
+                    cmd.Parameters.AddWithValue("@id", media_id);
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
+                        size = Convert.ToInt64(result);
                 }
             }
             return size;
         }
+        
+        public async Task<DateTime?> GetMediaTime(string folder, long media_id)
+        {
+            using var connection = new SqliteConnection($"Data Source={folder}/Metadata/user_data.db");
+            await connection.OpenAsync();
+
+            using var cmd = new SqliteCommand(
+                $"SELECT created_at FROM medias WHERE media_id = {media_id}", 
+                connection);
+
+            var result = await cmd.ExecuteScalarAsync();
+            if (result == null || result == DBNull.Value)
+                return null;
+            if (result is string s && string.IsNullOrWhiteSpace(s))
+                return null;
+
+            try
+            {
+                return Convert.ToDateTime(result);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
     }
 }

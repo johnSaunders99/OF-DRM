@@ -5,7 +5,7 @@ namespace OF_DRM_Video_Downloader.Helpers
 {
     public interface IDownloadHelper
     {
-        Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, ProgressTask task);
+        Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, string type, Auth auth, ProgressTask task);
         Task<bool> DownloadPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task);
         Task<bool> DownloadPurchasedPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task);
         Task<bool> DownloadArchivedDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task);

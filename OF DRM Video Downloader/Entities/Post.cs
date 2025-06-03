@@ -41,15 +41,6 @@ namespace OF_DRM_Video_Downloader.Entities
             public string url { get; set; }
         }
 
-        public class Full
-        {
-            public string url { get; set; }
-            public int? width { get; set; }
-            public int? height { get; set; }
-            public long? size { get; set; }
-            public List<string> sources { get; set; }
-        }
-
         public class Files
         {
             public Preview thumb { get; set; }
@@ -57,6 +48,14 @@ namespace OF_DRM_Video_Downloader.Entities
             public Preview squarePreview { get; set; }
             public Full full { get; set; }
             public Drm drm { get; set; }
+        }
+        public class Full
+        {
+            public string url { get; set; }
+            public int? width { get; set; }
+            public int? height { get; set; }
+            public long? size { get; set; }
+            public List<string> sources { get; set; }
         }
 
         public class Hls
@@ -99,7 +98,7 @@ namespace OF_DRM_Video_Downloader.Entities
             public bool isOpened { get; set; }
             public bool? canToggleFavorite { get; set; }
             public object streamId { get; set; }
-            public string price { get; set; }
+            public string? price { get; set; }
             public bool? hasVoting { get; set; }
             public bool? isAddedToBookmarks { get; set; }
             public bool isArchived { get; set; }

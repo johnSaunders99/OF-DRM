@@ -474,20 +474,106 @@ namespace OF_DRM_Video_Downloader.Helpers
                                 }
                                 foreach (Purchased.Medium media in paidpost.media)
                                 {
-                                    if (media.canView && media.files != null && media.files.drm != null && !previewids.Any(cus => cus.Equals(media.id)))
+                                    // if (media.canView && media.files != null && media.files.drm != null && !previewids.Any(cus => cus.Equals(media.id)))
+                                    // {
+                                    //     await dBHelper.AddPost(folder, paidpost.id, paidpost.text != null ? paidpost.text : string.Empty, paidpost.price != null ? paidpost.price.ToString() : "0", paidpost.price != null && paidpost.isOpened ? true : false, paidpost.isArchived.HasValue ? paidpost.isArchived.Value : false, paidpost.createdAt != null ? paidpost.createdAt : paidpost.postedAt);
+                                    //     if (!paidPostCollection.Video_URLS.ContainsKey(paidpost.id))
+                                    //     {
+                                    //         paidPostCollection.Video_URLS.Add(paidpost.id, new List<string>());
+                                    //     }
+                                    //     paidPostCollection.Video_URLS[paidpost.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidpost.id}");
+                                    //     if (!paidPostCollection.PaidPosts.ContainsKey(paidpost.id))
+                                    //     {
+                                    //         paidPostCollection.PaidPosts.Add(paidpost.id, paidpost.createdAt != null ? paidpost.createdAt : paidpost.postedAt);
+                                    //     }
+                                    //     await dBHelper.AddMedia(folder, media.id, media.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), previewids.Contains(media.id) ? true : false, false, paidpost.postedAt);
+                                    // }
+                                    bool postAdded = false;
+                                    if (!media.canView || media.files == null)
+                                    continue;
+
+                                    // 1. source define
+                                    string sourceUrl = null!;
+                                    bool isDrm = false;
+
+                                    if (media.files.drm?.manifest?.dash != null)
                                     {
-                                        await dBHelper.AddPost(folder, paidpost.id, paidpost.text != null ? paidpost.text : string.Empty, paidpost.price != null ? paidpost.price.ToString() : "0", paidpost.price != null && paidpost.isOpened ? true : false, paidpost.isArchived.HasValue ? paidpost.isArchived.Value : false, paidpost.createdAt != null ? paidpost.createdAt.Value : paidpost.postedAt.Value);
-                                        if (!paidPostCollection.Video_URLS.ContainsKey(paidpost.id))
-                                        {
-                                            paidPostCollection.Video_URLS.Add(paidpost.id, new List<string>());
-                                        }
-                                        paidPostCollection.Video_URLS[paidpost.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidpost.id}");
-                                        if (!paidPostCollection.PaidPosts.ContainsKey(paidpost.id))
-                                        {
-                                            paidPostCollection.PaidPosts.Add(paidpost.id, paidpost.createdAt != null ? paidpost.createdAt.Value : paidpost.postedAt.Value);
-                                        }
-                                        await dBHelper.AddMedia(folder, media.id, media.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), previewids.Contains(media.id) ? true : false, false, null);
+                                        sourceUrl = media.files.drm.manifest.dash;
+                                        isDrm = true;
                                     }
+                                    else if (media.files.full?.url != null)
+                                    {
+                                        sourceUrl = media.files.full.url;
+                                    }
+                                    else
+                                    {
+                                        continue; // no source
+                                    }
+
+                                    // 2. AddPost
+                                    if (!postAdded)
+                                    {
+                                        await dBHelper.AddPost(
+                                            folder,
+                                            paidpost.id,
+                                            paidpost.text ?? string.Empty,
+                                            paidpost.price?? "0",
+                                            paidpost.price != null && paidpost.isOpened,
+                                            paidpost.isArchived.HasValue ? paidpost.isArchived.Value : false,
+                                            paidpost.postedAt
+                                        );
+                                        postAdded = true;
+                                    }
+
+                                    // 3. list track
+                                    if (!paidPostCollection.Video_URLS.ContainsKey(paidpost.id))
+                                        paidPostCollection.Video_URLS[paidpost.id] = new List<string>();
+
+                                    if (isDrm)
+                                    {
+                                        var dashSig = media.files.drm.signature.dash;
+                                        paidPostCollection.Video_URLS[paidpost.id].Add(
+                                            $"{sourceUrl}," +
+                                            $"{dashSig.CloudFrontPolicy}," +
+                                            $"{dashSig.CloudFrontSignature}," +
+                                            $"{dashSig.CloudFrontKeyPairId}," +
+                                            $"{media.id}," +
+                                            $"{paidpost.id}"
+                                        );
+                                    }
+                                    else
+                                    {
+                                        paidPostCollection.Video_URLS[paidpost.id].Add(
+                                            $"{sourceUrl},{media.id},{paidpost.id}"
+                                        );
+                                    }
+
+                                    if (!paidPostCollection.PaidPosts.ContainsKey(paidpost.id))
+                                        paidPostCollection.PaidPosts[paidpost.id] = paidpost.postedAt;
+
+                                    // 4. persist Media
+                                    string category = media.type switch
+                                    {
+                                        "photo" => "Images",
+                                        "video" or "gif" => "Videos",
+                                        "audio" => "Audios",
+                                        _ => null
+                                    };
+
+                                    await dBHelper.AddMedia(
+                                        folder,
+                                        media.id,
+                                        paidpost.id,
+                                        sourceUrl,
+                                        null, // reserved1
+                                        null, // reserved2
+                                        null, // reserved3
+                                        "Posts",
+                                        category,
+                                        previewids.Contains(media.id),
+                                        false,
+                                        paidpost.postedAt
+                                    );
                                 }
                             }
                         }
@@ -633,7 +719,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     if (!media.canView || media.files == null)
                                     continue;
 
-                                    // 1. 确定视频源
+                                    // 1. source define
                                     string sourceUrl = null!;
                                     bool isDrm = false;
 
@@ -648,7 +734,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     }
                                     else
                                     {
-                                        continue; // 没有可用视频源
+                                        continue; // no source
                                     }
 
                                     // 2. AddPost
@@ -658,7 +744,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                             folder,
                                             post.id,
                                             post.text ?? string.Empty,
-                                            post.price?.ToString() ?? "0",
+                                            post.price?? "0",
                                             post.price != null && post.isOpened,
                                             post.isArchived,
                                             post.postedAt
@@ -666,7 +752,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                         postAdded = true;
                                     }
 
-                                    // 3. 内存列表追踪
+                                    // 3. list track
                                     if (!postCollection.Video_URLS.ContainsKey(post.id))
                                         postCollection.Video_URLS[post.id] = new List<string>();
 
@@ -692,7 +778,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     if (!postCollection.Posts.ContainsKey(post.id))
                                         postCollection.Posts[post.id] = post.postedAt;
 
-                                    // 4. 持久化 Media
+                                    // 4. persist Media
                                     string category = media.type switch
                                     {
                                         "photo" => "Images",
@@ -706,14 +792,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                                         media.id,
                                         post.id,
                                         sourceUrl,
-                                        null, // 预留1
-                                        null, // 预留2
-                                        null, // 预留3
+                                        null, // reserved1
+                                        null, // reserved2
+                                        null, // reserved3
                                         "Posts",
                                         category,
                                         postPreviewIds.Contains(media.id),
                                         false,
-                                        null
+                                        post.postedAt
                                     );
                                 }
                             }
@@ -1120,7 +1206,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                 {
                                     if (media.canView && media.files != null && media.files.drm != null && !previewids.Any(cus => cus.Equals(media.id)))
                                     {
-                                        await dBHelper.AddMessage(folder, paidmessage.id, paidmessage.text != null ? paidmessage.text : string.Empty, paidmessage.price != null ? paidmessage.price.ToString() : "0", paidmessage.price != null && paidmessage.isOpened ? true : false, paidmessage.isArchived.HasValue ? paidmessage.isArchived.Value : false, paidmessage.createdAt != null ? paidmessage.createdAt.Value : paidmessage.postedAt.Value, paidmessage.fromUser.id);
+                                        await dBHelper.AddMessage(folder, paidmessage.id, paidmessage.text != null ? paidmessage.text : string.Empty, paidmessage.price != null ? paidmessage.price.ToString() : "0", paidmessage.price != null && paidmessage.isOpened ? true : false, paidmessage.isArchived.HasValue ? paidmessage.isArchived.Value : false, paidmessage.createdAt != null ? paidmessage.createdAt : paidmessage.postedAt, paidmessage.fromUser.id);
                                         if (!paidMessagesCollection.Video_URLS.ContainsKey(paidmessage.id))
                                         {
                                             paidMessagesCollection.Video_URLS.Add(paidmessage.id, new List<string>());
@@ -1128,7 +1214,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                         paidMessagesCollection.Video_URLS[paidmessage.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidmessage.id}");
                                         if (!paidMessagesCollection.PaidMessages.ContainsKey(paidmessage.id))
                                         {
-                                            paidMessagesCollection.PaidMessages.Add(paidmessage.id, paidmessage.createdAt != null ? paidmessage.createdAt.Value : paidmessage.postedAt.Value);
+                                            paidMessagesCollection.PaidMessages.Add(paidmessage.id, paidmessage.createdAt != null ? paidmessage.createdAt : paidmessage.postedAt);
                                         }
                                         await dBHelper.AddMedia(folder, media.id, media.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), previewids.Contains(media.id) ? true : false, false, null);
                                     }

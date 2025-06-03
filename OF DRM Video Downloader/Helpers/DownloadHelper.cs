@@ -18,17 +18,17 @@ namespace OF_DRM_Video_Downloader.Helpers
             dBHelper = new DBHelper();
         }
 
-        public async Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, ProgressTask task)
+        public async Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, string type, Auth auth, ProgressTask task)
         {
             try
                     {
                         // Prepare filename and target folder
                         var uri = new Uri(fullUrl);
                         string filename = Path.GetFileName(uri.LocalPath);
-                        string relativePath = "/Posts/Free/Videos";
+                        string relativePath = type;
                         string targetDir = Path.Combine(folder, relativePath.TrimStart('/'));
                         Directory.CreateDirectory(targetDir);
-
+                        DateTime? mediaTime = await dBHelper.GetMediaTime(folder, mediaId);
                         // Skip if already downloaded
                         if (!await dBHelper.CheckDownloaded(folder, mediaId))
                         {
@@ -36,7 +36,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                             // Start HTTP download with streaming
                             using var http = new HttpClient();
-                            http.DefaultRequestHeaders.UserAgent.ParseAdd("YourUserAgentHere");
+                            http.DefaultRequestHeaders.Add("Cookie", auth.COOKIE);
+                            http.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
                             using var response = await http.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead);
                             response.EnsureSuccessStatusCode();
 
@@ -60,6 +61,9 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                             // Update filesystem timestamp to now
                             DateTime now = DateTime.UtcNow;
+                            
+                            //createTime to mediaTime if exists
+                            File.SetCreationTimeUtc(outputPath, mediaTime.HasValue ? mediaTime.Value : now);
                             File.SetLastWriteTimeUtc(outputPath, now);
 
                             // Record in database

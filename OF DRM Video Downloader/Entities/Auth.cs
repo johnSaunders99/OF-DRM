@@ -13,8 +13,8 @@ namespace Entities
         public string? X_BC { get; set; } = string.Empty;
         public string? COOKIE { get; set; } = string.Empty;
         public string? YTDLP_PATH { get; set; } = string.Empty;
-        public string? FFMPEG_PATH { get; set;} = string.Empty;
-        public string? MP4DECRYPT_PATH { get; set;} = string.Empty;
+        public string? FFMPEG_PATH { get; set; } = string.Empty;
+        public string? MP4DECRYPT_PATH { get; set; } = string.Empty;
         public bool DownloadPaidPosts { get; set; }
         public bool DownloadPosts { get; set; }
         public bool DownloadArchived { get; set; }

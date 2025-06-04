@@ -18,7 +18,9 @@ namespace OF_DRM_Video_Downloader.Helpers
         {
             dBHelper = new DBHelper();
         }
-        public async Task<Dictionary<string, int>> GetSubscriptions(string endpoint, bool includeExpiredSubscriptions, Auth auth)
+
+        public async Task<Dictionary<string, int>> GetSubscriptions(string endpoint, bool includeExpiredSubscriptions,
+            Auth auth)
         {
             try
             {
@@ -31,7 +33,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     { "limit", post_limit.ToString() },
                     { "order", "publish_date_asc" },
                     { "type", "all" },
-                    { "format", "infinite"}
+                    { "format", "infinite" }
                 };
 
                 Dictionary<string, int> users = new Dictionary<string, int>();
@@ -52,12 +54,14 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
                     request.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                 }
+
                 var jsonSerializerSettings = new JsonSerializerSettings();
                 jsonSerializerSettings.MissingMemberHandling = MissingMemberHandling.Ignore;
                 using (var response = await client.SendAsync(request))
@@ -82,27 +86,34 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Subscriptions newSubscriptions = new Subscriptions();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
-                                newSubscriptions = JsonConvert.DeserializeObject<Subscriptions>(loopbody, jsonSerializerSettings);
+                                newSubscriptions =
+                                    JsonConvert.DeserializeObject<Subscriptions>(loopbody, jsonSerializerSettings);
                             }
+
                             subscriptions.list.AddRange(newSubscriptions.list);
                             if (!newSubscriptions.hasMore)
                             {
                                 break;
                             }
+
                             GetParams["offset"] = Convert.ToString(Convert.ToInt32(GetParams["offset"]) + post_limit);
                         }
                     }
@@ -119,7 +130,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     }
                     else
                     {
-                        foreach (Subscriptions.List subscription in subscriptions.list.Where(s => s.subscribedBy.HasValue))
+                        foreach (Subscriptions.List subscription in subscriptions.list.Where(s =>
+                                     s.subscribedBy.HasValue))
                         {
                             if (!users.ContainsKey(subscription.username))
                             {
@@ -128,6 +140,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                         }
                     }
                 }
+
                 return users.OrderBy(x => x.Key).ToDictionary(x => x.Key, x => x.Value);
             }
             catch (Exception ex)
@@ -137,11 +150,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<Dictionary<string, int>> GetLists(string endpoint, Auth auth)
         {
             try
@@ -175,12 +191,14 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                     HttpClient client = new HttpClient();
 
-                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                        "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                     foreach (KeyValuePair<string, string> keyValuePair in headers)
                     {
                         request.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                     }
+
                     using (var response = await client.SendAsync(request))
                     {
                         response.EnsureSuccessStatusCode();
@@ -195,6 +213,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     lists.Add(l.name, Convert.ToInt32(l.id));
                                 }
                             }
+
                             if (userList.hasMore.Value)
                             {
                                 offset = offset + 50;
@@ -211,6 +230,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                         }
                     }
                 }
+
                 return lists;
             }
             catch (Exception ex)
@@ -220,11 +240,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<List<string>> GetListUsers(string endpoint, Auth auth)
         {
             try
@@ -256,12 +279,14 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                     HttpClient client = new HttpClient();
 
-                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                        "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                     foreach (KeyValuePair<string, string> keyValuePair in headers)
                     {
                         request.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                     }
+
                     using (var response = await client.SendAsync(request))
                     {
                         response.EnsureSuccessStatusCode();
@@ -273,6 +298,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                             {
                                 users.Add(ul.username);
                             }
+
                             if (users.Count >= 50)
                             {
                                 offset = offset + 50;
@@ -289,6 +315,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                         }
                     }
                 }
+
                 return users;
             }
             catch (Exception ex)
@@ -298,11 +325,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<User> GetUserInfo(string endpoint, Auth auth)
         {
             try
@@ -332,12 +362,14 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
                     request.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                 }
+
                 var jsonSerializerSettings = new JsonSerializerSettings();
                 jsonSerializerSettings.MissingMemberHandling = MissingMemberHandling.Ignore;
                 using (var response = await client.SendAsync(request))
@@ -352,8 +384,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         var body = await response.Content.ReadAsStringAsync();
                         user = JsonConvert.DeserializeObject<Entities.User>(body, jsonSerializerSettings);
                     }
-
                 }
+
                 return user;
             }
             catch (Exception ex)
@@ -363,12 +395,16 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
-        public async Task<PaidPostCollection> GetPaidPostVideos(string endpoint, string username, string folder, Auth auth)
+
+        public async Task<PaidPostCollection> GetPaidPostVideos(string endpoint, string username, string folder,
+            Auth auth)
         {
             try
             {
@@ -399,7 +435,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
@@ -413,7 +450,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     response.EnsureSuccessStatusCode();
                     var body = await response.Content.ReadAsStringAsync();
                     paidPosts = JsonConvert.DeserializeObject<Purchased>(body, jsonSerializerSettings);
-                    if (paidPosts != null && paidPosts.hasMore && !paidPosts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
+                    if (paidPosts != null && paidPosts.hasMore &&
+                        !paidPosts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
                     {
                         GetParams["offset"] = paidPosts.list.Count.ToString();
                         while (true)
@@ -430,27 +468,35 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Purchased newPaidPosts = new Purchased();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
-                                newPaidPosts = JsonConvert.DeserializeObject<Purchased>(loopbody, jsonSerializerSettings);
+                                newPaidPosts =
+                                    JsonConvert.DeserializeObject<Purchased>(loopbody, jsonSerializerSettings);
                             }
+
                             paidPosts.list.AddRange(newPaidPosts.list);
-                            if (!newPaidPosts.hasMore || newPaidPosts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
+                            if (!newPaidPosts.hasMore ||
+                                newPaidPosts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
                             {
                                 break;
                             }
+
                             GetParams["offset"] = Convert.ToString(Convert.ToInt32(GetParams["offset"]) + 50);
                         }
                     }
@@ -472,6 +518,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                         }
                                     }
                                 }
+
                                 foreach (Purchased.Medium media in paidpost.media)
                                 {
                                     // if (media.canView && media.files != null && media.files.drm != null && !previewids.Any(cus => cus.Equals(media.id)))
@@ -490,7 +537,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     // }
                                     bool postAdded = false;
                                     if (!media.canView || media.files == null)
-                                    continue;
+                                        continue;
 
                                     // 1. source define
                                     string sourceUrl = null!;
@@ -517,7 +564,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                             folder,
                                             paidpost.id,
                                             paidpost.text ?? string.Empty,
-                                            paidpost.price?? "0",
+                                            paidpost.price ?? "0",
                                             paidpost.price != null && paidpost.isOpened,
                                             paidpost.isArchived.HasValue ? paidpost.isArchived.Value : false,
                                             paidpost.postedAt
@@ -578,6 +625,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                             }
                         }
                     }
+
                     return paidPostCollection;
                 }
             }
@@ -588,11 +636,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<PostCollection> GetPostVideos(string endpoint, string folder, Auth auth)
         {
             try
@@ -623,7 +674,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
@@ -637,7 +689,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     response.EnsureSuccessStatusCode();
                     var body = await response.Content.ReadAsStringAsync();
                     posts = JsonConvert.DeserializeObject<Post>(body, jsonSerializerSettings);
-                    if (posts != null && posts.hasMore && !posts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
+                    if (posts != null && posts.hasMore && !posts.list.Any(p => p.postedAt < new DateTime(2019, 4, 1)))
                     {
                         GetParams["beforePublishTime"] = posts.tailMarker;
                         while (true)
@@ -654,27 +706,33 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Post newposts = new Post();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
                                 newposts = JsonConvert.DeserializeObject<Post>(loopbody, jsonSerializerSettings);
                             }
+
                             posts.list.AddRange(newposts.list);
-                            if (!newposts.hasMore || posts.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
+                            if (!newposts.hasMore || posts.list.Any(p => p.postedAt < new DateTime(2019, 4, 1)))
                             {
                                 break;
                             }
+
                             GetParams["beforePublishTime"] = newposts.tailMarker;
                         }
                     }
@@ -697,6 +755,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     }
                                 }
                             }
+
                             if (post.canViewMedia && post.media != null && post.media.Count > 0)
                             {
                                 foreach (Post.Medium media in post.media)
@@ -717,7 +776,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     // }
                                     bool postAdded = false;
                                     if (!media.canView || media.files == null)
-                                    continue;
+                                        continue;
 
                                     // 1. source define
                                     string sourceUrl = null!;
@@ -744,7 +803,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                                             folder,
                                             post.id,
                                             post.text ?? string.Empty,
-                                            post.price?? "0",
+                                            post.price ?? "0",
                                             post.price != null && post.isOpened,
                                             post.isArchived,
                                             post.postedAt
@@ -805,6 +864,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                             }
                         }
                     }
+
                     return postCollection;
                 }
             }
@@ -815,11 +875,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<ArchivedCollection> GetArchivedVideos(string endpoint, string folder, Auth auth)
         {
             try
@@ -851,7 +914,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
@@ -865,7 +929,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     response.EnsureSuccessStatusCode();
                     var body = await response.Content.ReadAsStringAsync();
                     archived = JsonConvert.DeserializeObject<Archived>(body, jsonSerializerSettings);
-                    if (archived != null && archived.hasMore && !archived.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
+                    if (archived != null && archived.hasMore &&
+                        !archived.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
                     {
                         GetParams["beforePublishTime"] = archived.tailMarker;
                         while (true)
@@ -882,27 +947,33 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Archived newArchived = new Archived();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
                                 newArchived = JsonConvert.DeserializeObject<Archived>(loopbody, jsonSerializerSettings);
                             }
+
                             archived.list.AddRange(newArchived.list);
                             if (!newArchived.hasMore || archived.list.Any(p => p.postedAt < new DateTime(2023, 4, 1)))
                             {
                                 break;
                             }
+
                             GetParams["beforePublishTime"] = newArchived.tailMarker;
                         }
                     }
@@ -925,28 +996,44 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     }
                                 }
                             }
+
                             if (archivedPost.canViewMedia && archivedPost.media != null && archivedPost.media.Count > 0)
                             {
                                 foreach (Archived.Medium media in archivedPost.media)
                                 {
                                     if (media.canView && media.files != null && media.files.drm != null)
                                     {
-                                        await dBHelper.AddPost(folder, archivedPost.id, archivedPost.text != null ? archivedPost.text : string.Empty, archivedPost.price != null ? archivedPost.price.ToString() : "0", archivedPost.price != null && archivedPost.isOpened ? true : false, archivedPost.isArchived, archivedPost.postedAt);
+                                        await dBHelper.AddPost(folder, archivedPost.id,
+                                            archivedPost.text != null ? archivedPost.text : string.Empty,
+                                            archivedPost.price != null ? archivedPost.price.ToString() : "0",
+                                            archivedPost.price != null && archivedPost.isOpened ? true : false,
+                                            archivedPost.isArchived, archivedPost.postedAt);
                                         if (!archivedCollection.Video_URLS.ContainsKey(archivedPost.id))
                                         {
                                             archivedCollection.Video_URLS.Add(archivedPost.id, new List<string>());
                                         }
-                                        archivedCollection.Video_URLS[archivedPost.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{archivedPost.id}");
+
+                                        archivedCollection.Video_URLS[archivedPost.id].Add(
+                                            $"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{archivedPost.id}");
                                         if (!archivedCollection.Archived.ContainsKey(archivedPost.id))
                                         {
                                             archivedCollection.Archived.Add(archivedPost.id, archivedPost.postedAt);
                                         }
-                                        await dBHelper.AddMedia(folder, media.id, archivedPost.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), previewids.Contains(media.id) ? true : false, false, null);
+
+                                        await dBHelper.AddMedia(folder, media.id, archivedPost.id,
+                                            media.files.drm.manifest.dash, null, null, null, "Posts",
+                                            media.type == "photo"
+                                                ? "Images"
+                                                : (media.type == "video" || media.type == "gif"
+                                                    ? "Videos"
+                                                    : (media.type == "audio" ? "Audios" : null)),
+                                            previewids.Contains(media.id) ? true : false, false, null);
                                     }
                                 }
                             }
                         }
                     }
+
                     return archivedCollection;
                 }
             }
@@ -957,11 +1044,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<MessagesCollection> GetMessageVideos(string endpoint, string folder, Auth auth)
         {
             try
@@ -990,7 +1080,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
@@ -1004,7 +1095,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     response.EnsureSuccessStatusCode();
                     var body = await response.Content.ReadAsStringAsync();
                     messages = JsonConvert.DeserializeObject<Messages>(body, jsonSerializerSettings);
-                    if (messages != null && messages.hasMore && !messages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
+                    if (messages != null && messages.hasMore &&
+                        !messages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
                     {
                         GetParams["last_id"] = messages.nextLastId.HasValue ? messages.nextLastId.Value.ToString() : "";
                         while (true)
@@ -1021,28 +1113,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Messages newMessages = new Messages();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
                                 newMessages = JsonConvert.DeserializeObject<Messages>(loopbody, jsonSerializerSettings);
                             }
+
                             messages.list.AddRange(newMessages.list);
                             if (!newMessages.hasMore || messages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
                             {
                                 break;
                             }
-                            GetParams["last_id"] = newMessages.nextLastId.HasValue ? newMessages.nextLastId.Value.ToString() : "";
+
+                            GetParams["last_id"] = newMessages.nextLastId.HasValue
+                                ? newMessages.nextLastId.Value.ToString()
+                                : "";
                         }
                     }
 
@@ -1061,28 +1161,50 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     }
                                 }
                             }
-                            if (message.media != null && message.media.Count > 0 && message.canPurchaseReason != "opened")
+
+                            if (message.media != null && message.media.Count > 0 &&
+                                message.canPurchaseReason != "opened")
                             {
                                 foreach (Messages.Medium media in message.media)
                                 {
                                     if (media.canView && media.files != null && media.files.drm != null)
                                     {
-                                        await dBHelper.AddMessage(folder, message.id, message.text != null ? message.text : string.Empty, message.price != null ? message.price.ToString() : "0", message.canPurchaseReason == "opened" ? true : message.canPurchaseReason != "opened" ? false : (bool?)null ?? false, false, message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now, message.fromUser != null && message.fromUser.id != null ? message.fromUser.id.Value : int.MinValue);
+                                        await dBHelper.AddMessage(folder, message.id,
+                                            message.text != null ? message.text : string.Empty,
+                                            message.price != null ? message.price.ToString() : "0",
+                                            message.canPurchaseReason == "opened" ? true :
+                                            message.canPurchaseReason != "opened" ? false : (bool?)null ?? false, false,
+                                            message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now,
+                                            message.fromUser != null && message.fromUser.id != null
+                                                ? message.fromUser.id.Value
+                                                : int.MinValue);
                                         if (!messagesCollection.Video_URLS.ContainsKey(message.id))
                                         {
                                             messagesCollection.Video_URLS.Add(message.id, new List<string>());
                                         }
-                                        messagesCollection.Video_URLS[message.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{message.id}");
+
+                                        messagesCollection.Video_URLS[message.id].Add(
+                                            $"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{message.id}");
                                         if (!messagesCollection.Messages.ContainsKey(message.id))
                                         {
-                                            messagesCollection.Messages.Add(message.id, message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now);
+                                            messagesCollection.Messages.Add(message.id,
+                                                message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now);
                                         }
-                                        await dBHelper.AddMedia(folder, media.id, message.id, media.files.drm.manifest.dash, null, null, null, "Messages", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), messagePreviewIds.Contains(media.id) ? true : false, false, null);
+
+                                        await dBHelper.AddMedia(folder, media.id, message.id,
+                                            media.files.drm.manifest.dash, null, null, null, "Messages",
+                                            media.type == "photo"
+                                                ? "Images"
+                                                : (media.type == "video" || media.type == "gif"
+                                                    ? "Videos"
+                                                    : (media.type == "audio" ? "Audios" : null)),
+                                            messagePreviewIds.Contains(media.id) ? true : false, false, null);
                                     }
                                 }
                             }
                         }
                     }
+
                     return messagesCollection;
                 }
             }
@@ -1093,12 +1215,16 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
-        public async Task<PaidMessagesCollection> GetPaidMessageVideos(string endpoint, string username, string folder, Auth auth)
+
+        public async Task<PaidMessagesCollection> GetPaidMessageVideos(string endpoint, string username, string folder,
+            Auth auth)
         {
             try
             {
@@ -1129,7 +1255,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                 HttpClient client = new HttpClient();
 
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + queryParams);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://onlyfans.com/api2/v2" + endpoint + queryParams);
 
                 foreach (KeyValuePair<string, string> keyValuePair in headers)
                 {
@@ -1143,7 +1270,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     response.EnsureSuccessStatusCode();
                     var body = await response.Content.ReadAsStringAsync();
                     paidMessages = JsonConvert.DeserializeObject<Purchased>(body, jsonSerializerSettings);
-                    if (paidMessages != null && paidMessages.hasMore && !paidMessages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
+                    if (paidMessages != null && paidMessages.hasMore &&
+                        !paidMessages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
                     {
                         GetParams["offset"] = paidMessages.list.Count.ToString();
                         while (true)
@@ -1160,27 +1288,35 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     loopqueryParams += $"{kvp.Key}={kvp.Value}&";
                                 }
                             }
+
                             Purchased newPaidMessages = new Purchased();
-                            Dictionary<string, string> loopheaders = Headers("/api2/v2" + endpoint, loopqueryParams, auth);
+                            Dictionary<string, string> loopheaders =
+                                Headers("/api2/v2" + endpoint, loopqueryParams, auth);
                             HttpClient loopclient = new HttpClient();
 
-                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get, "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
+                            HttpRequestMessage looprequest = new HttpRequestMessage(HttpMethod.Get,
+                                "https://onlyfans.com/api2/v2" + endpoint + loopqueryParams);
 
                             foreach (KeyValuePair<string, string> keyValuePair in loopheaders)
                             {
                                 looprequest.Headers.Add(keyValuePair.Key, keyValuePair.Value);
                             }
+
                             using (var loopresponse = await loopclient.SendAsync(looprequest))
                             {
                                 loopresponse.EnsureSuccessStatusCode();
                                 var loopbody = await loopresponse.Content.ReadAsStringAsync();
-                                newPaidMessages = JsonConvert.DeserializeObject<Purchased>(loopbody, jsonSerializerSettings);
+                                newPaidMessages =
+                                    JsonConvert.DeserializeObject<Purchased>(loopbody, jsonSerializerSettings);
                             }
+
                             paidMessages.list.AddRange(newPaidMessages.list);
-                            if (!newPaidMessages.hasMore || paidMessages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
+                            if (!newPaidMessages.hasMore ||
+                                paidMessages.list.Any(p => p.createdAt < new DateTime(2023, 4, 1)))
                             {
                                 break;
                             }
+
                             GetParams["offset"] = Convert.ToString(Convert.ToInt32(GetParams["offset"]) + 50);
                         }
                     }
@@ -1189,7 +1325,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         foreach (Purchased.List paidmessage in paidMessages.list)
                         {
-                            if (paidmessage.responseType == "message" && paidmessage.media != null && paidmessage.media.Count > 0)
+                            if (paidmessage.responseType == "message" && paidmessage.media != null &&
+                                paidmessage.media.Count > 0)
                             {
                                 List<long> previewids = new List<long>();
                                 if (paidmessage.previews != null)
@@ -1202,26 +1339,49 @@ namespace OF_DRM_Video_Downloader.Helpers
                                         }
                                     }
                                 }
+
                                 foreach (Purchased.Medium media in paidmessage.media)
                                 {
-                                    if (media.canView && media.files != null && media.files.drm != null && !previewids.Any(cus => cus.Equals(media.id)))
+                                    if (media.canView && media.files != null && media.files.drm != null &&
+                                        !previewids.Any(cus => cus.Equals(media.id)))
                                     {
-                                        await dBHelper.AddMessage(folder, paidmessage.id, paidmessage.text != null ? paidmessage.text : string.Empty, paidmessage.price != null ? paidmessage.price.ToString() : "0", paidmessage.price != null && paidmessage.isOpened ? true : false, paidmessage.isArchived.HasValue ? paidmessage.isArchived.Value : false, paidmessage.createdAt != null ? paidmessage.createdAt : paidmessage.postedAt, paidmessage.fromUser.id);
+                                        await dBHelper.AddMessage(folder, paidmessage.id,
+                                            paidmessage.text != null ? paidmessage.text : string.Empty,
+                                            paidmessage.price != null ? paidmessage.price.ToString() : "0",
+                                            paidmessage.price != null && paidmessage.isOpened ? true : false,
+                                            paidmessage.isArchived.HasValue ? paidmessage.isArchived.Value : false,
+                                            paidmessage.createdAt != null
+                                                ? paidmessage.createdAt
+                                                : paidmessage.postedAt, paidmessage.fromUser.id);
                                         if (!paidMessagesCollection.Video_URLS.ContainsKey(paidmessage.id))
                                         {
                                             paidMessagesCollection.Video_URLS.Add(paidmessage.id, new List<string>());
                                         }
-                                        paidMessagesCollection.Video_URLS[paidmessage.id].Add($"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidmessage.id}");
+
+                                        paidMessagesCollection.Video_URLS[paidmessage.id].Add(
+                                            $"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidmessage.id}");
                                         if (!paidMessagesCollection.PaidMessages.ContainsKey(paidmessage.id))
                                         {
-                                            paidMessagesCollection.PaidMessages.Add(paidmessage.id, paidmessage.createdAt != null ? paidmessage.createdAt : paidmessage.postedAt);
+                                            paidMessagesCollection.PaidMessages.Add(paidmessage.id,
+                                                paidmessage.createdAt != null
+                                                    ? paidmessage.createdAt
+                                                    : paidmessage.postedAt);
                                         }
-                                        await dBHelper.AddMedia(folder, media.id, media.id, media.files.drm.manifest.dash, null, null, null, "Posts", media.type == "photo" ? "Images" : (media.type == "video" || media.type == "gif" ? "Videos" : (media.type == "audio" ? "Audios" : null)), previewids.Contains(media.id) ? true : false, false, null);
+
+                                        await dBHelper.AddMedia(folder, media.id, media.id,
+                                            media.files.drm.manifest.dash, null, null, null, "Posts",
+                                            media.type == "photo"
+                                                ? "Images"
+                                                : (media.type == "video" || media.type == "gif"
+                                                    ? "Videos"
+                                                    : (media.type == "audio" ? "Audios" : null)),
+                                            previewids.Contains(media.id) ? true : false, false, null);
                                     }
                                 }
                             }
                         }
                     }
+
                     return paidMessagesCollection;
                 }
             }
@@ -1232,11 +1392,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public async Task<string> GetDRMMPDPSSH(string mpdUrl, string policy, string signature, string kvp, Auth auth)
         {
             try
@@ -1246,7 +1409,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, mpdUrl);
                 request.Headers.Add("user-agent", auth.USER_AGENT);
                 request.Headers.Add("Accept", "*/*");
-                request.Headers.Add("Cookie", $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE};");
+                request.Headers.Add("Cookie",
+                    $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE};");
                 using (var response = await client.SendAsync(request))
                 {
                     response.EnsureSuccessStatusCode();
@@ -1267,12 +1431,16 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
-        public async Task<DateTime> GetDRMMPDLastModified(string mpdUrl, string policy, string signature, string kvp, Auth auth)
+
+        public async Task<DateTime> GetDRMMPDLastModified(string mpdUrl, string policy, string signature, string kvp,
+            Auth auth)
         {
             try
             {
@@ -1281,12 +1449,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, mpdUrl);
                 request.Headers.Add("user-agent", auth.USER_AGENT);
                 request.Headers.Add("Accept", "*/*");
-                request.Headers.Add("Cookie", $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE};");
+                request.Headers.Add("Cookie",
+                    $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE};");
                 using (var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead))
                 {
                     response.EnsureSuccessStatusCode();
                     lastmodified = response.Content.Headers.LastModified?.LocalDateTime ?? DateTime.Now;
                 }
+
                 return lastmodified;
             }
             catch (Exception ex)
@@ -1296,12 +1466,16 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return DateTime.Now;
         }
-        public async Task<string> GetDecryptionKey(Dictionary<string, string> drmHeaders, string licenceURL, string pssh)
+
+        public async Task<string> GetDecryptionKey(Dictionary<string, string> drmHeaders, string licenceURL,
+            string pssh)
         {
             try
             {
@@ -1325,6 +1499,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                         sb.AppendFormat("{0}: {1}\\n", header.Key, header.Value);
                     }
                 }
+
                 sb.Remove(sb.Length - 2, 2); // remove the last \\n
                 sb.Append("\",\n");
                 sb.AppendFormat("  \"pssh\": \"{0}\",\n", pssh);
@@ -1350,6 +1525,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     // Get the text value of the <li> element
                     dcValue = dcElement.InnerText;
                 }
+
                 return dcValue;
             }
             catch (Exception ex)
@@ -1359,12 +1535,16 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
-        public async Task<string> GetDecryptionKeyNew(Dictionary<string, string> drmHeaders, string licenceURL, string pssh)
+
+        public async Task<string> GetDecryptionKeyNew(Dictionary<string, string> drmHeaders, string licenceURL,
+            string pssh)
         {
             try
             {
@@ -1388,27 +1568,30 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return null;
         }
+
         public Dictionary<string, string> Headers(string path, string queryParams, Auth auth)
         {
             DynamicRules? root;
 
-			//Get rules from GitHub and fallback to local file
-			string? dynamicRulesJSON = GetDynamicRules();
-			if (!string.IsNullOrEmpty(dynamicRulesJSON))
-			{
-				root = JsonConvert.DeserializeObject<DynamicRules>(dynamicRulesJSON);
-			}
-			else
-			{
-				root = JsonConvert.DeserializeObject<DynamicRules>(File.ReadAllText("rules.json"));
-			}
+            //Get rules from GitHub and fallback to local file
+            string? dynamicRulesJSON = GetDynamicRules();
+            if (!string.IsNullOrEmpty(dynamicRulesJSON))
+            {
+                root = JsonConvert.DeserializeObject<DynamicRules>(dynamicRulesJSON);
+            }
+            else
+            {
+                root = JsonConvert.DeserializeObject<DynamicRules>(File.ReadAllText("rules.json"));
+            }
 
-			DateTimeOffset dto = (DateTimeOffset)DateTime.UtcNow;
+            DateTimeOffset dto = (DateTimeOffset)DateTime.UtcNow;
             long timestamp = dto.ToUnixTimeMilliseconds();
 
             string input = $"{root!.StaticParam}\n{timestamp}\n{path + queryParams}\n{auth.USER_ID}";
@@ -1416,7 +1599,8 @@ namespace OF_DRM_Video_Downloader.Helpers
             byte[] hashBytes = SHA1.HashData(inputBytes);
             string hashString = BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
 
-            var checksum = root.ChecksumIndexes.Aggregate(0, (current, number) => current + hashString[number]) + root.ChecksumConstant!.Value;
+            var checksum = root.ChecksumIndexes.Aggregate(0, (current, number) => current + hashString[number]) +
+                           root.ChecksumConstant!.Value;
             var sign = $"{root.Prefix}:{hashString}:{checksum.ToString("X").ToLower()}:{root.Suffix}";
 
             Dictionary<string, string> headers = new()
@@ -1433,37 +1617,39 @@ namespace OF_DRM_Video_Downloader.Helpers
             return headers;
         }
 
-		public static string? GetDynamicRules()
-		{
-			try
-			{
-				HttpClient client = new HttpClient();
-				HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://raw.githubusercontent.com/rafa-9/dynamic-rules/73748e035957041e33cab3213d89ca6cf4107327/rules.json");
-				using var response = client.Send(request);
+        public static string? GetDynamicRules()
+        {
+            try
+            {
+                HttpClient client = new HttpClient();
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,
+                    "https://raw.githubusercontent.com/rafa-9/dynamic-rules/73748e035957041e33cab3213d89ca6cf4107327/rules.json");
+                using var response = client.Send(request);
 
-				if (!response.IsSuccessStatusCode)
-				{
-					
-					return null;
-				}
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
 
-				var body = response.Content.ReadAsStringAsync().Result;
+                var body = response.Content.ReadAsStringAsync().Result;
 
-				return body;
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.Message, ex.StackTrace);
-				if (ex.InnerException != null)
-				{
-					Console.WriteLine("\nInner Exception:");
-					Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
-				}
-			}
-			return null;
-		}
+                return body;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.Message, ex.StackTrace);
+                if (ex.InnerException != null)
+                {
+                    Console.WriteLine("\nInner Exception:");
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
+                }
+            }
 
-		public static bool IsStringOnlyDigits(string input)
+            return null;
+        }
+
+        public static bool IsStringOnlyDigits(string input)
         {
             foreach (char c in input)
             {
@@ -1472,6 +1658,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     return false;
                 }
             }
+
             return true;
         }
     }

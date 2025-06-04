@@ -18,101 +18,106 @@ namespace OF_DRM_Video_Downloader.Helpers
             dBHelper = new DBHelper();
         }
 
-        public async Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, string type, Auth auth, ProgressTask task)
+        public async Task<bool> DownloadPostFullVideo(string fullUrl, string folder, long mediaId, string type,
+            Auth auth, ProgressTask task)
         {
             try
+            {
+                // Prepare filename and target folder
+                var uri = new Uri(fullUrl);
+                string filename = Path.GetFileName(uri.LocalPath);
+                string relativePath = type;
+                string targetDir = Path.Combine(folder, relativePath.TrimStart('/'));
+                Directory.CreateDirectory(targetDir);
+                DateTime? mediaTime = await dBHelper.GetMediaTime(folder, mediaId);
+                // Skip if already downloaded or exists
+                if (!await dBHelper.CheckDownloaded(folder, mediaId, type, filename))
+                {
+                    string outputPath = Path.Combine(targetDir, filename);
+                    if (File.Exists(outputPath))
+                        File.Delete(outputPath);
+                    // Start HTTP download with streaming
+                    using var http = new HttpClient();
+                    http.DefaultRequestHeaders.Add("Cookie", auth.COOKIE);
+                    http.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
+                    using var response = await http.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead);
+                    response.EnsureSuccessStatusCode();
+
+                    long totalBytes = response.Content.Headers.ContentLength ?? 0;
+                    task.Increment(0); // initialize progress
+                    task.MaxValue = totalBytes; // set total size
+
+                    // Download to file with incremental progress
+                    using var contentStream = await response.Content.ReadAsStreamAsync();
+                    using var fileStream =
+                        new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    var buffer = new byte[81920];
+                    int bytesRead;
+                    long bytesSoFar = 0;
+
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        // Prepare filename and target folder
-                        var uri = new Uri(fullUrl);
-                        string filename = Path.GetFileName(uri.LocalPath);
-                        string relativePath = type;
-                        string targetDir = Path.Combine(folder, relativePath.TrimStart('/'));
-                        Directory.CreateDirectory(targetDir);
-                        DateTime? mediaTime = await dBHelper.GetMediaTime(folder, mediaId);
-                        // Skip if already downloaded
-                        if (!await dBHelper.CheckDownloaded(folder, mediaId))
-                        {
-                            string outputPath = Path.Combine(targetDir, filename);
-
-                            // Start HTTP download with streaming
-                            using var http = new HttpClient();
-                            http.DefaultRequestHeaders.Add("Cookie", auth.COOKIE);
-                            http.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
-                            using var response = await http.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead);
-                            response.EnsureSuccessStatusCode();
-
-                            long totalBytes = response.Content.Headers.ContentLength ?? 0;
-                            task.Increment(0);            // initialize progress
-                            task.MaxValue = totalBytes;   // set total size
-
-                            // Download to file with incremental progress
-                            using var contentStream = await response.Content.ReadAsStreamAsync();
-                            using var fileStream    = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                            var buffer = new byte[81920];
-                            int bytesRead;
-                            long bytesSoFar = 0;
-
-                            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                            {
-                                await fileStream.WriteAsync(buffer, 0, bytesRead);
-                                bytesSoFar += bytesRead;
-                                task.Increment(bytesRead);
-                            }
-
-                            // Update filesystem timestamp to now
-                            DateTime now = DateTime.UtcNow;
-                            
-                            //createTime to mediaTime if exists
-                            File.SetCreationTimeUtc(outputPath, mediaTime.HasValue ? mediaTime.Value : now);
-                            File.SetLastWriteTimeUtc(outputPath, now);
-
-                            // Record in database
-                            long fileSize = new FileInfo(outputPath).Length;
-                            await dBHelper.UpdateMedia(
-                                folder,
-                                mediaId,
-                                targetDir,
-                                filename,
-                                fileSize,
-                                true,      // isDownloaded
-                                now        // lastModified
-                            );
-
-                            return true; // new download
-                        }
-                        else
-                        {
-                            // Already downloaded: just increment progress and update DB timestamp
-                            string existingPath = Path.Combine(
-                                folder,
-                                "Posts/Free/Videos",
-                                Path.GetFileName(new Uri(fullUrl).LocalPath)
-                            );
-                            long fileSize = await dBHelper.GetFileSize(folder, mediaId);
-                            task.Increment(fileSize);
-
-                            // Optionally refresh DB record’s lastModified
-                            await dBHelper.UpdateMedia(
-                                folder,
-                                mediaId,
-                                Path.GetDirectoryName(existingPath),
-                                Path.GetFileName(existingPath),
-                                fileSize,
-                                true,
-                                File.GetLastWriteTimeUtc(existingPath)
-                            );
-
-                            return false; // already existed
-                        }
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        bytesSoFar += bytesRead;
+                        task.Increment(bytesRead);
                     }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"DownloadPostFullVideo error: {ex.Message}\n{ex.StackTrace}");
-                        return false;
-                    }
+
+                    // Update filesystem timestamp to now
+                    DateTime now = DateTime.UtcNow;
+
+                    //createTime to mediaTime if exists
+                    File.SetLastWriteTimeUtc(outputPath, now);
+
+                    // Record in database
+                    long fileSize = new FileInfo(outputPath).Length;
+                    await dBHelper.UpdateMedia(
+                        folder,
+                        mediaId,
+                        targetDir,
+                        filename,
+                        fileSize,
+                        true, // isDownloaded
+                        now // lastModified
+                    );
+
+                    File.SetCreationTimeUtc(outputPath, mediaTime.HasValue ? mediaTime.Value : now);
+                    return true; // new download
+                }
+                else
+                {
+                    // Already downloaded: just increment progress and update DB timestamp
+                    string existingPath = Path.Combine(
+                        folder,
+                        "Posts/Free/Videos",
+                        Path.GetFileName(new Uri(fullUrl).LocalPath)
+                    );
+                    long fileSize = await dBHelper.GetFileSize(folder, mediaId);
+                    task.Increment(fileSize);
+
+                    // Optionally refresh DB record’s lastModified
+                    await dBHelper.UpdateMedia(
+                        folder,
+                        mediaId,
+                        Path.GetDirectoryName(existingPath),
+                        Path.GetFileName(existingPath),
+                        fileSize,
+                        true,
+                        File.GetCreationTimeUtc(existingPath)
+                    );
+
+                    return false; // already existed
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DownloadPostFullVideo error: {ex.Message}\n{ex.StackTrace}");
+                return false;
+            }
         }
 
-        public async Task<bool> DownloadPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
+        public async Task<bool> DownloadPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath,
+            string user_agent, string policy, string signature, string kvp, string sess, string url,
+            string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try
             {
@@ -123,6 +128,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     Directory.CreateDirectory(folder + path); // create the new folder
                 }
+
                 if (!await dBHelper.CheckDownloaded(folder, media_id))
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
@@ -130,7 +136,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Use ytdl-p to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
-                        ytdlpstartInfo.Arguments = $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
+                        ytdlpstartInfo.Arguments =
+                            $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
                         ytdlpstartInfo.CreateNoWindow = true;
 
                         Process ytdlpprocess = new Process();
@@ -141,30 +148,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Remove .fx from filenames
                         if (File.Exists(folder + path + "/" + filename + ".f1.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f1.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f1.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f2.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f2.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f2.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f3.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f3.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
 
                         if (File.Exists(folder + path + "/" + filename + ".f3.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f3.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f4.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f4.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f4.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
 
                         //Use mp4decrypt to decrypt the MP4 and M4A files
                         ProcessStartInfo mp4decryptStartInfoVideo = new ProcessStartInfo();
                         mp4decryptStartInfoVideo.FileName = mp4decryptpath;
-                        mp4decryptStartInfoVideo.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
+                        mp4decryptStartInfoVideo.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
                         mp4decryptStartInfoVideo.CreateNoWindow = true;
 
                         Process mp4decryptVideoProcess = new Process();
@@ -174,7 +187,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                         ProcessStartInfo mp4decryptStartInfoAudio = new ProcessStartInfo();
                         mp4decryptStartInfoAudio.FileName = mp4decryptpath;
-                        mp4decryptStartInfoAudio.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
+                        mp4decryptStartInfoAudio.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
                         mp4decryptStartInfoAudio.CreateNoWindow = true;
 
                         Process mp4decryptAudioProcess = new Process();
@@ -185,7 +199,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Finally use FFMPEG to merge the 2 together
                         ProcessStartInfo ffmpegStartInfo = new ProcessStartInfo();
                         ffmpegStartInfo.FileName = ffmpegpath;
-                        ffmpegStartInfo.Arguments = $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
+                        ffmpegStartInfo.Arguments =
+                            $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
                         ffmpegStartInfo.CreateNoWindow = true;
 
                         Process ffmpegProcess = new Process();
@@ -197,7 +212,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Cleanup Files
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                         File.Delete($"{folder + path + "/" + filename}.mp4");
                         File.Delete($"{folder + path + "/" + filename}.m4a");
                         File.Delete($"{folder + path + "/" + filename}_adec.mp4");
@@ -209,7 +225,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                     }
                 }
                 else
@@ -217,6 +234,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     long size = await dBHelper.GetFileSize(folder, media_id);
                     task.Increment(size);
                 }
+
                 return false;
             }
             catch (Exception ex)
@@ -226,12 +244,17 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return false;
         }
-        public async Task<bool> DownloadPurchasedPostDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
+
+        public async Task<bool> DownloadPurchasedPostDRMVideo(string ytdlppath, string mp4decryptpath,
+            string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url,
+            string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try
             {
@@ -242,6 +265,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     Directory.CreateDirectory(folder + path); // create the new folder
                 }
+
                 if (!await dBHelper.CheckDownloaded(folder, media_id))
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
@@ -249,7 +273,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Use ytdl-p to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
-                        ytdlpstartInfo.Arguments = $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
+                        ytdlpstartInfo.Arguments =
+                            $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
                         ytdlpstartInfo.CreateNoWindow = true;
 
                         Process ytdlpprocess = new Process();
@@ -260,30 +285,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Remove .fx from filenames
                         if (File.Exists(folder + path + "/" + filename + ".f1.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f1.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f1.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f2.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f2.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f2.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f3.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f3.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
 
                         if (File.Exists(folder + path + "/" + filename + ".f3.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f3.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f4.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f4.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f4.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
 
                         //Use mp4decrypt to decrypt the MP4 and M4A files
                         ProcessStartInfo mp4decryptStartInfoVideo = new ProcessStartInfo();
                         mp4decryptStartInfoVideo.FileName = mp4decryptpath;
-                        mp4decryptStartInfoVideo.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
+                        mp4decryptStartInfoVideo.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
                         mp4decryptStartInfoVideo.CreateNoWindow = true;
 
                         Process mp4decryptVideoProcess = new Process();
@@ -293,7 +324,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                         ProcessStartInfo mp4decryptStartInfoAudio = new ProcessStartInfo();
                         mp4decryptStartInfoAudio.FileName = mp4decryptpath;
-                        mp4decryptStartInfoAudio.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
+                        mp4decryptStartInfoAudio.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
                         mp4decryptStartInfoAudio.CreateNoWindow = true;
 
                         Process mp4decryptAudioProcess = new Process();
@@ -304,7 +336,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Finally use FFMPEG to merge the 2 together
                         ProcessStartInfo ffmpegStartInfo = new ProcessStartInfo();
                         ffmpegStartInfo.FileName = ffmpegpath;
-                        ffmpegStartInfo.Arguments = $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
+                        ffmpegStartInfo.Arguments =
+                            $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
                         ffmpegStartInfo.CreateNoWindow = true;
 
                         Process ffmpegProcess = new Process();
@@ -316,7 +349,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Cleanup Files
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                         File.Delete($"{folder + path + "/" + filename}.mp4");
                         File.Delete($"{folder + path + "/" + filename}.m4a");
                         File.Delete($"{folder + path + "/" + filename}_adec.mp4");
@@ -328,7 +362,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                     }
                 }
                 else
@@ -336,6 +371,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     long size = await dBHelper.GetFileSize(folder, media_id);
                     task.Increment(size);
                 }
+
                 return false;
             }
             catch (Exception ex)
@@ -345,12 +381,17 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return false;
         }
-        public async Task<bool> DownloadArchivedDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
+
+        public async Task<bool> DownloadArchivedDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath,
+            string user_agent, string policy, string signature, string kvp, string sess, string url,
+            string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try
             {
@@ -361,6 +402,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     Directory.CreateDirectory(folder + path); // create the new folder
                 }
+
                 if (!await dBHelper.CheckDownloaded(folder, media_id))
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
@@ -368,7 +410,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Use ytdl-p to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
-                        ytdlpstartInfo.Arguments = $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
+                        ytdlpstartInfo.Arguments =
+                            $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
                         ytdlpstartInfo.CreateNoWindow = true;
 
                         Process ytdlpprocess = new Process();
@@ -379,30 +422,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Remove .fx from filenames
                         if (File.Exists(folder + path + "/" + filename + ".f1.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f1.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f1.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f2.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f2.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f2.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f3.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f3.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
 
                         if (File.Exists(folder + path + "/" + filename + ".f3.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f3.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f4.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f4.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f4.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
 
                         //Use mp4decrypt to decrypt the MP4 and M4A files
                         ProcessStartInfo mp4decryptStartInfoVideo = new ProcessStartInfo();
                         mp4decryptStartInfoVideo.FileName = mp4decryptpath;
-                        mp4decryptStartInfoVideo.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
+                        mp4decryptStartInfoVideo.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
                         mp4decryptStartInfoVideo.CreateNoWindow = true;
 
                         Process mp4decryptVideoProcess = new Process();
@@ -412,7 +461,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                         ProcessStartInfo mp4decryptStartInfoAudio = new ProcessStartInfo();
                         mp4decryptStartInfoAudio.FileName = mp4decryptpath;
-                        mp4decryptStartInfoAudio.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
+                        mp4decryptStartInfoAudio.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
                         mp4decryptStartInfoAudio.CreateNoWindow = true;
 
                         Process mp4decryptAudioProcess = new Process();
@@ -423,7 +473,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Finally use FFMPEG to merge the 2 together
                         ProcessStartInfo ffmpegStartInfo = new ProcessStartInfo();
                         ffmpegStartInfo.FileName = ffmpegpath;
-                        ffmpegStartInfo.Arguments = $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
+                        ffmpegStartInfo.Arguments =
+                            $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
                         ffmpegStartInfo.CreateNoWindow = true;
 
                         Process ffmpegProcess = new Process();
@@ -435,7 +486,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Cleanup Files
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                         File.Delete($"{folder + path + "/" + filename}.mp4");
                         File.Delete($"{folder + path + "/" + filename}.m4a");
                         File.Delete($"{folder + path + "/" + filename}_adec.mp4");
@@ -447,7 +499,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                     }
                 }
                 else
@@ -455,6 +508,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     long size = await dBHelper.GetFileSize(folder, media_id);
                     task.Increment(size);
                 }
+
                 return false;
             }
             catch (Exception ex)
@@ -464,12 +518,17 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return false;
         }
-        public async Task<bool> DownloadMessageDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
+
+        public async Task<bool> DownloadMessageDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath,
+            string user_agent, string policy, string signature, string kvp, string sess, string url,
+            string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try
             {
@@ -480,6 +539,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     Directory.CreateDirectory(folder + path); // create the new folder
                 }
+
                 if (!await dBHelper.CheckDownloaded(folder, media_id))
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
@@ -487,7 +547,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Use ytdl-p to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
-                        ytdlpstartInfo.Arguments = $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
+                        ytdlpstartInfo.Arguments =
+                            $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
                         ytdlpstartInfo.CreateNoWindow = true;
 
                         Process ytdlpprocess = new Process();
@@ -498,30 +559,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Remove .fx from filenames
                         if (File.Exists(folder + path + "/" + filename + ".f1.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f1.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f1.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f2.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f2.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f2.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f3.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f3.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
 
                         if (File.Exists(folder + path + "/" + filename + ".f3.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f3.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f4.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f4.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f4.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
 
                         //Use mp4decrypt to decrypt the MP4 and M4A files
                         ProcessStartInfo mp4decryptStartInfoVideo = new ProcessStartInfo();
                         mp4decryptStartInfoVideo.FileName = mp4decryptpath;
-                        mp4decryptStartInfoVideo.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
+                        mp4decryptStartInfoVideo.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
                         mp4decryptStartInfoVideo.CreateNoWindow = true;
 
                         Process mp4decryptVideoProcess = new Process();
@@ -531,7 +598,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                         ProcessStartInfo mp4decryptStartInfoAudio = new ProcessStartInfo();
                         mp4decryptStartInfoAudio.FileName = mp4decryptpath;
-                        mp4decryptStartInfoAudio.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
+                        mp4decryptStartInfoAudio.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
                         mp4decryptStartInfoAudio.CreateNoWindow = true;
 
                         Process mp4decryptAudioProcess = new Process();
@@ -542,7 +610,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Finally use FFMPEG to merge the 2 together
                         ProcessStartInfo ffmpegStartInfo = new ProcessStartInfo();
                         ffmpegStartInfo.FileName = ffmpegpath;
-                        ffmpegStartInfo.Arguments = $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
+                        ffmpegStartInfo.Arguments =
+                            $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
                         ffmpegStartInfo.CreateNoWindow = true;
 
                         Process ffmpegProcess = new Process();
@@ -554,7 +623,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Cleanup Files
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                         File.Delete($"{folder + path + "/" + filename}.mp4");
                         File.Delete($"{folder + path + "/" + filename}.m4a");
                         File.Delete($"{folder + path + "/" + filename}_adec.mp4");
@@ -566,7 +636,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                     }
                 }
                 else
@@ -574,6 +645,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     long size = await dBHelper.GetFileSize(folder, media_id);
                     task.Increment(size);
                 }
+
                 return false;
             }
             catch (Exception ex)
@@ -583,12 +655,17 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return false;
         }
-        public async Task<bool> DownloadPaidMessageDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath, string user_agent, string policy, string signature, string kvp, string sess, string url, string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
+
+        public async Task<bool> DownloadPaidMessageDRMVideo(string ytdlppath, string mp4decryptpath, string ffmpegpath,
+            string user_agent, string policy, string signature, string kvp, string sess, string url,
+            string decryptionKey, string folder, DateTime lastModified, long media_id, ProgressTask task)
         {
             try
             {
@@ -599,6 +676,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     Directory.CreateDirectory(folder + path); // create the new folder
                 }
+
                 if (!await dBHelper.CheckDownloaded(folder, media_id))
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
@@ -606,7 +684,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Use ytdl-p to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
-                        ytdlpstartInfo.Arguments = $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
+                        ytdlpstartInfo.Arguments =
+                            $"--allow-u --no-part --restrict-filenames -N 4 --user-agent \"{user_agent}\" --add-header \"Cookie:CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {sess}\" --referer \"https://onlyfans.com/\" -o \"{folder + path + "/"}%(title)s.%(ext)s\" --format \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best[ext=m4a]\" \"{url}\"";
                         ytdlpstartInfo.CreateNoWindow = true;
 
                         Process ytdlpprocess = new Process();
@@ -617,30 +696,36 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Remove .fx from filenames
                         if (File.Exists(folder + path + "/" + filename + ".f1.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f1.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f1.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f2.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f2.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f2.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f3.mp4"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.mp4", folder + path + "/" + filename + ".mp4");
+                            File.Move(folder + path + "/" + filename + ".f3.mp4",
+                                folder + path + "/" + filename + ".mp4");
                         }
 
                         if (File.Exists(folder + path + "/" + filename + ".f3.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f3.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f3.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
                         else if (File.Exists(folder + path + "/" + filename + ".f4.m4a"))
                         {
-                            File.Move(folder + path + "/" + filename + ".f4.m4a", folder + path + "/" + filename + ".m4a");
+                            File.Move(folder + path + "/" + filename + ".f4.m4a",
+                                folder + path + "/" + filename + ".m4a");
                         }
 
                         //Use mp4decrypt to decrypt the MP4 and M4A files
                         ProcessStartInfo mp4decryptStartInfoVideo = new ProcessStartInfo();
                         mp4decryptStartInfoVideo.FileName = mp4decryptpath;
-                        mp4decryptStartInfoVideo.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
+                        mp4decryptStartInfoVideo.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.mp4 {folder + path + "/" + filename}_vdec.mp4";
                         mp4decryptStartInfoVideo.CreateNoWindow = true;
 
                         Process mp4decryptVideoProcess = new Process();
@@ -650,7 +735,8 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                         ProcessStartInfo mp4decryptStartInfoAudio = new ProcessStartInfo();
                         mp4decryptStartInfoAudio.FileName = mp4decryptpath;
-                        mp4decryptStartInfoAudio.Arguments = $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
+                        mp4decryptStartInfoAudio.Arguments =
+                            $"--key {decryptionKey} {folder + path + "/" + filename}.m4a {folder + path + "/" + filename}_adec.mp4";
                         mp4decryptStartInfoAudio.CreateNoWindow = true;
 
                         Process mp4decryptAudioProcess = new Process();
@@ -661,7 +747,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Finally use FFMPEG to merge the 2 together
                         ProcessStartInfo ffmpegStartInfo = new ProcessStartInfo();
                         ffmpegStartInfo.FileName = ffmpegpath;
-                        ffmpegStartInfo.Arguments = $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
+                        ffmpegStartInfo.Arguments =
+                            $"-i {folder + path + "/" + filename}_vdec.mp4 -i {folder + path + "/" + filename}_adec.mp4 -c copy {folder + path + "/" + filename}_source.mp4";
                         ffmpegStartInfo.CreateNoWindow = true;
 
                         Process ffmpegProcess = new Process();
@@ -673,7 +760,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                         //Cleanup Files
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                         File.Delete($"{folder + path + "/" + filename}.mp4");
                         File.Delete($"{folder + path + "/" + filename}.m4a");
                         File.Delete($"{folder + path + "/" + filename}_adec.mp4");
@@ -685,7 +773,8 @@ namespace OF_DRM_Video_Downloader.Helpers
                     {
                         long fileSizeInBytes = new FileInfo(folder + path + "/" + filename + "_source.mp4").Length;
                         task.Increment(fileSizeInBytes);
-                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4", fileSizeInBytes, true, lastModified);
+                        await dBHelper.UpdateMedia(folder, media_id, folder + path, filename + "_source.mp4",
+                            fileSizeInBytes, true, lastModified);
                     }
                 }
                 else
@@ -693,6 +782,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     long size = await dBHelper.GetFileSize(folder, media_id);
                     task.Increment(size);
                 }
+
                 return false;
             }
             catch (Exception ex)
@@ -702,11 +792,14 @@ namespace OF_DRM_Video_Downloader.Helpers
                 if (ex.InnerException != null)
                 {
                     Console.WriteLine("\nInner Exception:");
-                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message, ex.InnerException.StackTrace);
+                    Console.WriteLine("Exception caught: {0}\n\nStackTrace: {1}", ex.InnerException.Message,
+                        ex.InnerException.StackTrace);
                 }
             }
+
             return false;
         }
+
         public async Task<long> CalculateTotalFileSize(List<string> urls, Auth auth)
         {
             long totalFileSize = 0;
@@ -772,10 +865,12 @@ namespace OF_DRM_Video_Downloader.Helpers
 
                     using (HttpClient client = new HttpClient())
                     {
-                        client.DefaultRequestHeaders.Add("Cookie", $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE}");
+                        client.DefaultRequestHeaders.Add("Cookie",
+                            $"CloudFront-Policy={policy}; CloudFront-Signature={signature}; CloudFront-Key-Pair-Id={kvp}; {auth.COOKIE}");
                         client.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
 
-                        using (HttpResponseMessage response = await client.GetAsync(mpdURL, HttpCompletionOption.ResponseHeadersRead))
+                        using (HttpResponseMessage response =
+                               await client.GetAsync(mpdURL, HttpCompletionOption.ResponseHeadersRead))
                         {
                             if (response.IsSuccessStatusCode)
                             {

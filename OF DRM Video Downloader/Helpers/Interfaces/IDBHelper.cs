@@ -6,6 +6,9 @@
         Task AddMessage(string folder, long post_id, string message_text, string price, bool is_paid, bool is_archived, DateTime created_at, int user_id);
         Task AddPost(string folder, long post_id, string message_text, string price, bool is_paid, bool is_archived, DateTime created_at);
         Task<bool> CheckDownloaded(string folder, long media_id);
+        
+        Task<bool> CheckDownloaded(string folder, long media_id, string type, string file_name);
+
         Task CreateDB(string folder);
         Task<long> GetFileSize(string folder, long media_id);
         Task UpdateMedia(string folder, long media_id, string directory, string filename, long size, bool downloaded, DateTime created_at);

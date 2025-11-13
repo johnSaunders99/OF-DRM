@@ -29,6 +29,7 @@
 
   <ItemGroup>
     <None Include="bin\Debug\net8.0\auth.json" />
+    <None Include="bin\Debug\net8.0\e_sqlite3.dll" />
     <None Include="bin\Debug\net8.0\rules.json" />
   </ItemGroup>
 

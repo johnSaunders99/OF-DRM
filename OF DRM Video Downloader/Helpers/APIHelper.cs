@@ -1165,9 +1165,33 @@ namespace OF_DRM_Video_Downloader.Helpers
                             if (message.media != null && message.media.Count > 0 &&
                                 message.canPurchaseReason != "opened")
                             {
+                                bool messageAdded = false;
                                 foreach (Messages.Medium media in message.media)
                                 {
-                                    if (media.canView && media.files != null && media.files.drm != null)
+                                    if (!media.canView || media.files == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    string? sourceUrl = null;
+                                    bool isDrm = false;
+
+                                    if (media.files.drm?.manifest?.dash != null)
+                                    {
+                                        sourceUrl = media.files.drm.manifest.dash;
+                                        isDrm = true;
+                                    }
+                                    else if (media.files.full?.url != null)
+                                    {
+                                        sourceUrl = media.files.full.url;
+                                    }
+
+                                    if (sourceUrl == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (!messageAdded)
                                     {
                                         await dBHelper.AddMessage(folder, message.id,
                                             message.text != null ? message.text : string.Empty,
@@ -1178,28 +1202,40 @@ namespace OF_DRM_Video_Downloader.Helpers
                                             message.fromUser != null && message.fromUser.id != null
                                                 ? message.fromUser.id.Value
                                                 : int.MinValue);
-                                        if (!messagesCollection.Video_URLS.ContainsKey(message.id))
-                                        {
-                                            messagesCollection.Video_URLS.Add(message.id, new List<string>());
-                                        }
-
-                                        messagesCollection.Video_URLS[message.id].Add(
-                                            $"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{message.id}");
-                                        if (!messagesCollection.Messages.ContainsKey(message.id))
-                                        {
-                                            messagesCollection.Messages.Add(message.id,
-                                                message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now);
-                                        }
-
-                                        await dBHelper.AddMedia(folder, media.id, message.id,
-                                            media.files.drm.manifest.dash, null, null, null, "Messages",
-                                            media.type == "photo"
-                                                ? "Images"
-                                                : (media.type == "video" || media.type == "gif"
-                                                    ? "Videos"
-                                                    : (media.type == "audio" ? "Audios" : null)),
-                                            messagePreviewIds.Contains(media.id) ? true : false, false, null);
+                                        messageAdded = true;
                                     }
+
+                                    if (!messagesCollection.Video_URLS.ContainsKey(message.id))
+                                    {
+                                        messagesCollection.Video_URLS.Add(message.id, new List<string>());
+                                    }
+
+                                    if (isDrm)
+                                    {
+                                        var dashSig = media.files.drm.signature.dash;
+                                        messagesCollection.Video_URLS[message.id].Add(
+                                            $"{sourceUrl},{dashSig.CloudFrontPolicy},{dashSig.CloudFrontSignature},{dashSig.CloudFrontKeyPairId},{media.id},{message.id}");
+                                    }
+                                    else
+                                    {
+                                        messagesCollection.Video_URLS[message.id].Add(
+                                            $"{sourceUrl},{media.id},{message.id}");
+                                    }
+
+                                    if (!messagesCollection.Messages.ContainsKey(message.id))
+                                    {
+                                        messagesCollection.Messages.Add(message.id,
+                                            message.createdAt.HasValue ? message.createdAt.Value : DateTime.Now);
+                                    }
+
+                                    await dBHelper.AddMedia(folder, media.id, message.id,
+                                        sourceUrl, null, null, null, "Messages",
+                                        media.type == "photo"
+                                            ? "Images"
+                                            : (media.type == "video" || media.type == "gif"
+                                                ? "Videos"
+                                                : (media.type == "audio" ? "Audios" : null)),
+                                        messagePreviewIds.Contains(media.id) ? true : false, false, null);
                                 }
                             }
                         }
@@ -1340,10 +1376,34 @@ namespace OF_DRM_Video_Downloader.Helpers
                                     }
                                 }
 
+                                bool messageAdded = false;
                                 foreach (Purchased.Medium media in paidmessage.media)
                                 {
-                                    if (media.canView && media.files != null && media.files.drm != null &&
-                                        !previewids.Any(cus => cus.Equals(media.id)))
+                                    if (!media.canView || media.files == null ||
+                                        previewids.Any(cus => cus.Equals(media.id)))
+                                    {
+                                        continue;
+                                    }
+
+                                    string? sourceUrl = null;
+                                    bool isDrm = false;
+
+                                    if (media.files.drm?.manifest?.dash != null)
+                                    {
+                                        sourceUrl = media.files.drm.manifest.dash;
+                                        isDrm = true;
+                                    }
+                                    else if (media.files.full?.url != null)
+                                    {
+                                        sourceUrl = media.files.full.url;
+                                    }
+
+                                    if (sourceUrl == null)
+                                    {
+                                        continue;
+                                    }
+
+                                    if (!messageAdded)
                                     {
                                         await dBHelper.AddMessage(folder, paidmessage.id,
                                             paidmessage.text != null ? paidmessage.text : string.Empty,
@@ -1353,30 +1413,42 @@ namespace OF_DRM_Video_Downloader.Helpers
                                             paidmessage.createdAt != null
                                                 ? paidmessage.createdAt
                                                 : paidmessage.postedAt, paidmessage.fromUser.id);
-                                        if (!paidMessagesCollection.Video_URLS.ContainsKey(paidmessage.id))
-                                        {
-                                            paidMessagesCollection.Video_URLS.Add(paidmessage.id, new List<string>());
-                                        }
-
-                                        paidMessagesCollection.Video_URLS[paidmessage.id].Add(
-                                            $"{media.files.drm.manifest.dash},{media.files.drm.signature.dash.CloudFrontPolicy},{media.files.drm.signature.dash.CloudFrontSignature},{media.files.drm.signature.dash.CloudFrontKeyPairId},{media.id},{paidmessage.id}");
-                                        if (!paidMessagesCollection.PaidMessages.ContainsKey(paidmessage.id))
-                                        {
-                                            paidMessagesCollection.PaidMessages.Add(paidmessage.id,
-                                                paidmessage.createdAt != null
-                                                    ? paidmessage.createdAt
-                                                    : paidmessage.postedAt);
-                                        }
-
-                                        await dBHelper.AddMedia(folder, media.id, media.id,
-                                            media.files.drm.manifest.dash, null, null, null, "Posts",
-                                            media.type == "photo"
-                                                ? "Images"
-                                                : (media.type == "video" || media.type == "gif"
-                                                    ? "Videos"
-                                                    : (media.type == "audio" ? "Audios" : null)),
-                                            previewids.Contains(media.id) ? true : false, false, null);
+                                        messageAdded = true;
                                     }
+
+                                    if (!paidMessagesCollection.Video_URLS.ContainsKey(paidmessage.id))
+                                    {
+                                        paidMessagesCollection.Video_URLS.Add(paidmessage.id, new List<string>());
+                                    }
+
+                                    if (isDrm)
+                                    {
+                                        var dashSig = media.files.drm.signature.dash;
+                                        paidMessagesCollection.Video_URLS[paidmessage.id].Add(
+                                            $"{sourceUrl},{dashSig.CloudFrontPolicy},{dashSig.CloudFrontSignature},{dashSig.CloudFrontKeyPairId},{media.id},{paidmessage.id}");
+                                    }
+                                    else
+                                    {
+                                        paidMessagesCollection.Video_URLS[paidmessage.id].Add(
+                                            $"{sourceUrl},{media.id},{paidmessage.id}");
+                                    }
+
+                                    if (!paidMessagesCollection.PaidMessages.ContainsKey(paidmessage.id))
+                                    {
+                                        paidMessagesCollection.PaidMessages.Add(paidmessage.id,
+                                            paidmessage.createdAt != null
+                                                ? paidmessage.createdAt
+                                                : paidmessage.postedAt);
+                                    }
+
+                                    await dBHelper.AddMedia(folder, media.id, media.id,
+                                        sourceUrl, null, null, null, "Posts",
+                                        media.type == "photo"
+                                            ? "Images"
+                                            : (media.type == "video" || media.type == "gif"
+                                                ? "Videos"
+                                                : (media.type == "audio" ? "Audios" : null)),
+                                        previewids.Contains(media.id) ? true : false, false, null);
                                 }
                             }
                         }

@@ -5,6 +5,8 @@ VisualStudioVersion = 17.5.33627.172
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OF DRM Video Downloader", "OF DRM Video Downloader\OF DRM Video Downloader.csproj", "{CABFBEAB-4437-4978-9D3E-196C36F8431D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OF DRM Video Downloader.Tests", "OF DRM Video Downloader.Tests\OF DRM Video Downloader.Tests.csproj", "{5B1715BE-1AC7-4AF5-AC3D-16BFCB1495E0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{CABFBEAB-4437-4978-9D3E-196C36F8431D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CABFBEAB-4437-4978-9D3E-196C36F8431D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CABFBEAB-4437-4978-9D3E-196C36F8431D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B1715BE-1AC7-4AF5-AC3D-16BFCB1495E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B1715BE-1AC7-4AF5-AC3D-16BFCB1495E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B1715BE-1AC7-4AF5-AC3D-16BFCB1495E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B1715BE-1AC7-4AF5-AC3D-16BFCB1495E0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

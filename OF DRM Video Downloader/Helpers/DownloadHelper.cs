@@ -62,7 +62,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                         task.Increment(bytesRead);
                     }
 
-                    // Update filesystem timestamp to now
+                    // Update the filesystem timestamps to reflect when the media was captured
                     DateTime now = DateTime.UtcNow;
 
                     //createTime to mediaTime if exists
@@ -86,11 +86,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 else
                 {
                     // Already downloaded: just increment progress and update DB timestamp
-                    string existingPath = Path.Combine(
-                        folder,
-                        "Posts/Free/Videos",
-                        Path.GetFileName(new Uri(fullUrl).LocalPath)
-                    );
+                    string existingPath = Path.Combine(targetDir, Path.GetFileName(uri.LocalPath));
                     long fileSize = await dBHelper.GetFileSize(folder, mediaId);
                     task.Increment(fileSize);
 
@@ -98,7 +94,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                     await dBHelper.UpdateMedia(
                         folder,
                         mediaId,
-                        Path.GetDirectoryName(existingPath),
+                        targetDir,
                         Path.GetFileName(existingPath),
                         fileSize,
                         true,
@@ -133,7 +129,7 @@ namespace OF_DRM_Video_Downloader.Helpers
                 {
                     if (!File.Exists(folder + path + "/" + filename + "_source.mp4"))
                     {
-                        //Use ytdl-p to download the MPD as a M4A and MP4 file
+                        //Use yt-dlp to download the MPD as a M4A and MP4 file
                         ProcessStartInfo ytdlpstartInfo = new ProcessStartInfo();
                         ytdlpstartInfo.FileName = ytdlppath;
                         ytdlpstartInfo.Arguments =
@@ -852,16 +848,17 @@ namespace OF_DRM_Video_Downloader.Helpers
 
             try
             {
-                Uri uri = new Uri(url);
-                if (uri.Host == "cdn3.onlyfans.com" && uri.LocalPath.Contains("/dash/files"))
-                {
-                    string[] messageUrlParsed = url.Split(',');
-                    string mpdURL = messageUrlParsed[0];
-                    string policy = messageUrlParsed[1];
-                    string signature = messageUrlParsed[2];
-                    string kvp = messageUrlParsed[3];
+                var parts = url.Split(',');
+                string sourceUrl = parts[0];
+                Uri uri = new Uri(sourceUrl);
 
-                    mpdURL = mpdURL.Replace(".mpd", "_source.mp4");
+                if (uri.Host == "cdn3.onlyfans.com" && uri.LocalPath.Contains("/dash/files") && parts.Length >= 4)
+                {
+                    string policy = parts[1];
+                    string signature = parts[2];
+                    string kvp = parts[3];
+
+                    sourceUrl = sourceUrl.Replace(".mpd", "_source.mp4");
 
                     using (HttpClient client = new HttpClient())
                     {
@@ -870,13 +867,28 @@ namespace OF_DRM_Video_Downloader.Helpers
                         client.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
 
                         using (HttpResponseMessage response =
-                               await client.GetAsync(mpdURL, HttpCompletionOption.ResponseHeadersRead))
+                               await client.GetAsync(sourceUrl, HttpCompletionOption.ResponseHeadersRead))
                         {
                             if (response.IsSuccessStatusCode)
                             {
                                 fileSize = response.Content.Headers.ContentLength ?? 0;
                             }
                         }
+                    }
+                }
+                else
+                {
+                    using HttpClient client = new HttpClient();
+                    client.DefaultRequestHeaders.Add("Cookie", auth.COOKIE);
+                    client.DefaultRequestHeaders.Add("User-Agent", auth.USER_AGENT);
+
+                    using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, sourceUrl);
+                    using HttpResponseMessage response =
+                        await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        fileSize = response.Content.Headers.ContentLength ?? 0;
                     }
                 }
             }

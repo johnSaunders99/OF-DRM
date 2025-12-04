@@ -41,14 +41,16 @@ Make sure you remove the file extensions when renaming the 2 files, and move bot
 Once you have filled all of the information out you can close auth.json and double click on OF DRM.exe and you should be ready to start downloading videos.
 
 # Videos
-This scraper is aimed to download DRM videos only and nothing else.
+This scraper is aimed to download DRM videos only and nothing else. When a post, message, paid-post, or paid-message
+entry contains a non-DRM download URL the app will still save it using the same download paths; otherwise, DRM manifests
+will be handled through the Widevine flow.
 
 You will get the choice to:
 - Download None of the videos found
 - Download All of the videos found
 - Select individual videos found, you will be able to see the Post/Message Id along with DateTime of that Post/Message.
 
-To navigate the menu the can use the &#8593; & &#8595; arrows, to select/deselect video(s) press the `space` key and after you are happy with your selection(s) press `enter` to start downloading.
+To navigate the menu you can use the &#8593; & &#8595; arrows, to select/deselect video(s) press the `space` key and after you are happy with your selection(s) press `enter` to start downloading.
 
 # Config Values
 `DownloadPaidPosts`:
